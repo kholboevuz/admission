@@ -1,0 +1,24 @@
+{
+  "LoginPage": {
+    "logo-name": "O‘zbekiston Respublikasi Prezidenti huzuridagi Davlat siyosati va boshqaruvi akademiyasi",
+    "subtitle": "Yagona avtomatlashtirilgan axborot tizimi",
+    "button": "Kirish",
+    "buttton-login": "OneID orqali kirish",
+    "button-login-with-password": "Kirish",
+    "reset-password": "Parolni unitdingizmi?",
+    "or-conitinu": "Yoki davom eting",
+    "no-register": "Hisobingiz yo'qmi?",
+    "register": "Roʻyxatdan oʻtish",
+    "login-yes": "Akkauntingiz bormi?",
+    "confirm-password": "Parolni tasdiqlang",
+    "placeholder-confirm-password": "Parolni qayta kiriting",
+    "document": "Passport raqami",
+    "brth-date": "Tug‘ilgan sana",
+    "input_field": {
+      "username": "PINFL",
+      "username-placeholder": "PINFL ni kiriting",
+      "password": "Parol",
+      "password-placeholder": "Parolni kiriting"
+    }
+  }
+}

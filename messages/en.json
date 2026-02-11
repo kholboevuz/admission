@@ -1,0 +1,24 @@
+{
+  "LoginPage": {
+    "logo-name": "Academy of Public Policy and Administration under the President of the Republic of Uzbekistan",
+    "subtitle": "Unified Automated Information System",
+    "button": "Sign In",
+    "buttton-login": "Sign in via OneID",
+    "button-login-with-password": "Sign In",
+    "reset-password": "Forgot password?",
+    "or-conitinu": "Or continue with",
+    "no-register": "Don't have an account?",
+    "register": "Sign Up",
+    "login-yes": "Already have an account?",
+    "confirm-password": "Confirm password",
+    "placeholder-confirm-password": "Re-enter password",
+    "brth-date": "Birth date",
+    "document": "Passport number",
+    "input_field": {
+      "username": "PINFL",
+      "username-placeholder": "Enter PINFL",
+      "password": "Password",
+      "password-placeholder": "Enter password"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "LoginPage": {
+    "logo-name": "Академия государственной политики и управления при Президенте Республики Узбекистан",
+    "subtitle": "Единая автоматизированная информационная система",
+    "button": "Войти",
+    "buttton-login": "Войти через OneID",
+    "button-login-with-password": "Войти",
+    "reset-password": "Забыли пароль?",
+    "or-conitinu": "Или продолжить",
+    "no-register": "Нет аккаунта?",
+    "register": "Зарегистрироваться",
+    "login-yes": "Уже есть аккаунт?",
+    "confirm-password": "Подтвердите пароль",
+    "placeholder-confirm-password": "Введите пароль еще раз",
+    "brth-date": "Дата рождения",
+    "document": "Номер паспорта",
+    "input_field": {
+      "username": "ПИНФЛ",
+      "username-placeholder": "Введите ПИНФЛ",
+      "password": "Пароль",
+      "password-placeholder": "Введите пароль"
+    }
+  }
+}

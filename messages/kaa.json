@@ -1,0 +1,24 @@
+{
+  "LoginPage": {
+    "logo-name": "Oʻzbekstan Respublikası Prezidentiniń janındaǵı Dávlet siyasatı hám basqarıw akademiyası",
+    "subtitle": "Birlesken avtomatlashtırılǵan axborat sisteması",
+    "button": "Kiriw",
+    "buttton-login": "OneID arqalı kiriw",
+    "button-login-with-password": "Kiriw",
+    "reset-password": "Paroldı unuttıńızba?",
+    "or-conitinu": "Nemese dáwam etiń",
+    "no-register": "Esabıńız joqpa?",
+    "register": "Dizimnen ótiw",
+    "login-yes": "Akkauntıńız bar ma?",
+    "confirm-password": "Paroldı tastıyıqlaw",
+    "placeholder-confirm-password": "Paroldı qayta kiritiń",
+    "brth-date": "Tug‘ılǵan sana",
+    "document": "Pasport nomeri",
+    "input_field": {
+      "username": "PINFL",
+      "username-placeholder": "PINFL kiritiń",
+      "password": "Parol",
+      "password-placeholder": "Paroldı kiritiń"
+    }
+  }
+}
