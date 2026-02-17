@@ -7,6 +7,8 @@ import { axiosClient } from "@/http/axios";
 import { showToast, ToastType } from "@/utils/toast-utils";
 import { Loader2 } from "lucide-react";
 import React from "react";
+import { useRouter } from "next/navigation";
+import MalumotnomaRequiredSimple from "@/components/not-malumotnoma";
 
 type ActiveAdmission = {
     _id: string;
@@ -20,6 +22,7 @@ type ActiveAdmission = {
 };
 
 type ExistingApp = {
+    _id?: string;
     admission_id: string;
     step: number;
     step_1?: any;
@@ -28,48 +31,45 @@ type ExistingApp = {
     application_status?: string;
     createdAt?: string;
     updatedAt?: string;
+    pinfl?: string;
 };
 
-const TIMELINE_STATUSES = new Set([
-    "submitted",
-    "returned",
-    "reviewed",
-    "accepted",
-    "rejected",
-]);
+type SessionResponse = {
+    success: boolean;
+    user: null | {
+        id: string;
+        firstname: string;
+        lastname: string;
+        role: string;
+        pinfl: string;
+    };
+};
+
+const TIMELINE_STATUSES = new Set(["submitted", "returned", "reviewed", "accepted", "rejected"]);
 
 function normStatus(s: unknown) {
     return String(s ?? "").trim().toLowerCase();
 }
+
 function toISOorNull(v: any): string | null {
     if (!v) return null;
-
-    // Date bo‘lsa
     if (v instanceof Date) return v.toISOString();
-
-    // String bo‘lsa (ISO yoki boshqa)
     if (typeof v === "string") {
         const d = new Date(v);
-        if (!Number.isNaN(d.getTime())) return d.toISOString();
-        return null;
+        return Number.isNaN(d.getTime()) ? null : d.toISOString();
     }
-
-    // MongoDate object kelib qolsa: { $date: ... }
     if (typeof v === "object" && v.$date) {
         const d = new Date(v.$date);
-        if (!Number.isNaN(d.getTime())) return d.toISOString();
+        return Number.isNaN(d.getTime()) ? null : d.toISOString();
     }
-
     return null;
 }
 
 function formatUZDateTime(v: any): string {
     const iso = toISOorNull(v);
     if (!iso) return "—";
-
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "—";
-
     return new Intl.DateTimeFormat("uz-UZ", {
         timeZone: "Asia/Tashkent",
         year: "numeric",
@@ -80,59 +80,113 @@ function formatUZDateTime(v: any): string {
     }).format(d);
 }
 
+
+function CenterLoader() {
+    return (
+        <div className="flex min-h-[50vh] items-center justify-center">
+            <Loader2 className="animate-spin" />
+        </div>
+    );
+}
+
 export default function Page() {
+    const router = useRouter();
+
+    const [bootLoading, setBootLoading] = React.useState(true);
+
     const [isOpen, setIsOpen] = React.useState<boolean>(false);
     const [admission, setAdmission] = React.useState<ActiveAdmission | null>(null);
-    const [existing, setExisting] = React.useState<ExistingApp | null>(null);
-    const [applicationData, setApplicationData] = React.useState<any>(null);
-    const [loading, setLoading] = React.useState(true);
-    const [editLoading, setEditLoading] = React.useState(false);
-    const load = async () => {
-        try {
-            setLoading(true);
 
+    const [applicationData, setApplicationData] = React.useState<ExistingApp | null>(null);
+    const [existing, setExisting] = React.useState<ExistingApp | null>(null);
+
+    const [editLoading, setEditLoading] = React.useState(false);
+
+    const [malumotnoma, setMalumotnoma] = React.useState<boolean | null>(null);
+
+    // Bizga doim pinfl kerak (ariza bo‘lmasa ham)
+    const [pinfl, setPinfl] = React.useState<string | null>(null);
+
+    const loadAll = React.useCallback(async () => {
+        setBootLoading(true);
+
+        try {
+            // 0) Session pinfl
+            let sessionPinfl: string | null = null;
+            try {
+                const sess = await axiosClient.get<SessionResponse>("/auth/session");
+                sessionPinfl = sess.data?.user?.pinfl ?? null;
+            } catch {
+                sessionPinfl = null;
+            }
+            setPinfl(sessionPinfl);
+
+            // 1) Active admission (qabul)
             let active: ActiveAdmission | null = null;
             try {
                 const a = await axiosClient.get("/user/application/active");
                 active = (a.data?.data as ActiveAdmission) || null;
-            } catch (e) {
+            } catch {
                 active = null;
             }
 
+            // 2) Qabul ochiq/yopiq
             try {
                 const s = await axiosClient.get("/user/application/status");
                 setIsOpen(!!s.data?.data?.status);
-            } catch (e) {
+            } catch {
                 setIsOpen(false);
             }
 
+            // admission faqat status=true bo‘lsa
             setAdmission(active && active.status ? active : null);
 
-            let app: any = null;
+            let app: ExistingApp | null = null;
             try {
+
                 const me = await axiosClient.get("/user/application/me", {
                     params: active?._id ? { admission_id: active._id } : undefined,
                 });
-                app = me.data?.data ?? null;
-            } catch (e) {
+                app = (me.data?.data as ExistingApp) ?? null;
+            } catch {
                 app = null;
             }
 
             setApplicationData(app);
             setExisting(app);
-        } finally {
-            setLoading(false);
-        }
-    };
 
-    React.useEffect(() => {
-        load();
+            const p = (app as any)?.pinfl || sessionPinfl;
+
+            if (!p) {
+
+                setMalumotnoma(false);
+            } else {
+                setMalumotnoma(null);
+                try {
+                    const res = await axiosClient.get("/user/malumotnoma/get/status", { params: { pinfl: p } });
+                    if (res.data?.success) setMalumotnoma(!!res.data?.data?.status);
+                    else setMalumotnoma(false);
+                } catch {
+                    setMalumotnoma(false);
+                }
+            }
+        } finally {
+            setBootLoading(false);
+        }
     }, []);
 
+    React.useEffect(() => {
+        loadAll();
+    }, [loadAll]);
 
     const onEdit = async () => {
         try {
             setEditLoading(true);
+
+            if (!applicationData?._id) {
+                showToast("Ariza topilmadi", ToastType.Error);
+                return;
+            }
 
             const res = await axiosClient.post("/user/application/status/update", {
                 applicationId: applicationData._id,
@@ -143,7 +197,7 @@ export default function Page() {
 
             if (res.data?.success) {
                 showToast("Ariza tahrirlash rejimiga o‘tkazildi", ToastType.Success);
-                await load();
+                await loadAll();
             } else {
                 showToast(res.data?.error || "Noma’lum xatolik", ToastType.Error);
             }
@@ -153,56 +207,47 @@ export default function Page() {
                 err?.response?.data?.message ||
                 err?.message ||
                 "Ariza holatini yangilashda xatolik yuz berdi.";
-
             showToast(message, ToastType.Error);
         } finally {
             setEditLoading(false);
         }
     };
 
-
-    if (loading) {
-        return (
-            <div className="flex min-h-[50vh] items-center justify-center">
-                <Loader2 className="animate-spin" />
-            </div>
-        );
-    }
+    if (bootLoading) return <CenterLoader />;
 
     const hasApp = !!applicationData?._id;
     const st = normStatus(applicationData?.application_status);
 
-    if (hasApp) {
-        if (TIMELINE_STATUSES.has(st)) {
-            return (
-                <TimelineApplication
-                    status={st as any}
-                    submittedAt={formatUZDateTime(applicationData?.createdAt)}
-                    onEdit={onEdit}
-                    editLoading={editLoading}
-                />
-            );
-        }
+    if (hasApp && TIMELINE_STATUSES.has(st)) {
+        return (
+            <TimelineApplication
+                status={st as any}
+                submittedAt={formatUZDateTime((applicationData as any)?.createdAt)}
+                onEdit={onEdit}
+                editLoading={editLoading}
+            />
+        );
+    }
 
-        if (!isOpen) {
+    if (!isOpen || !admission) {
+        if (hasApp) {
             return (
                 <TimelineApplication
                     status={(st || "submitted") as any}
-                    submittedAt={formatUZDateTime(applicationData?.createdAt)}
+                    submittedAt={formatUZDateTime((applicationData as any)?.createdAt)}
                     onEdit={onEdit}
                     editLoading={editLoading}
                 />
             );
         }
-
-        if (admission) {
-            return <StepperForm admission={admission} existing={existing} onLoad={load} />;
-        }
-
-        return <StepperForm admission={admission as any} existing={existing} onLoad={load} />;
+        return <SubmissionClosed />;
     }
 
-    if (!isOpen || !admission) return <SubmissionClosed />;
+    if (malumotnoma === null) return <CenterLoader />;
 
-    return <StepperForm admission={admission} existing={existing} onLoad={load} />;
+    if (malumotnoma === false) {
+        return <MalumotnomaRequiredSimple />;
+    }
+
+    return <StepperForm admission={admission} existing={existing} onLoad={loadAll} />;
 }
