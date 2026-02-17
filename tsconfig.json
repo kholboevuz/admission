@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+, "models/click-transaction"  ],
   "exclude": ["node_modules"]
 }

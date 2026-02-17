@@ -22,6 +22,9 @@ import {
 
 import { registerSchema } from "@/schema/schema";
 import Link from "next/link";
+import { axiosClient } from "@/http/axios";
+import { showToast, ToastType } from "@/utils/toast-utils";
+import { useRouter } from "next/navigation";
 
 type FormValues = z.infer<typeof registerSchema>;
 
@@ -33,9 +36,8 @@ export function RegisterForm({
 
     const [showPassword, setShowPassword] = React.useState(false);
     const [showConfirm, setShowConfirm] = React.useState(false);
-    const [serverError, setServerError] = React.useState<string | null>(null);
     const [loading, setLoading] = React.useState(false);
-
+    const router = useRouter();
     const form = useForm<FormValues>({
         resolver: zodResolver(registerSchema),
         defaultValues: {
@@ -49,13 +51,44 @@ export function RegisterForm({
     });
 
     async function onSubmit(data: FormValues) {
-        setServerError(null);
         setLoading(true);
-        try {
-            console.log("register payload:", data);
 
-        } catch (e) {
-            setServerError("Serverda xatolik. Qayta urinib ko‘ring.");
+        try {
+            const response = await axiosClient.post("/auth/register", {
+                pinfl: data.pinfl,
+                document: data.document,
+                brithday: data.birthDate,
+                password: data.password,
+                role: "user",
+            });
+
+            const resData = response.data;
+
+            if (resData.success) {
+                showToast(
+                    resData.message || "Registration successful",
+                    ToastType.Success
+                );
+                form.reset();
+                router.push("/auth/login");
+            } else {
+                showToast(
+                    resData.error || resData.message || "Registration failed",
+                    ToastType.Error
+                );
+            }
+
+        } catch (error: any) {
+
+            const backendMessage =
+                error?.response?.data?.error ||
+                error?.response?.data?.message;
+
+            showToast(
+                backendMessage || "Serverda xatolik. Qayta urinib ko‘ring.",
+                ToastType.Error
+            );
+
         } finally {
             setLoading(false);
         }
@@ -229,17 +262,18 @@ export function RegisterForm({
                 {/* Submit */}
                 <Field>
                     <Button type="submit" className="w-full" disabled={isDisabled}>
-                        {t("register")}
+                        {loading ? "Ro‘yxatdan o‘tish..." : t("register")}
                     </Button>
                 </Field>
 
-                <FieldSeparator>{t("or-conitinu")}</FieldSeparator>
+                {/* <FieldSeparator>{t("or-conitinu")}</FieldSeparator> */}
 
 
                 <Field>
-                    <Button variant="outline" type="button" className="w-full">
+                    {/* <Button variant="outline" type="button" className="w-full">
+                        <img src={"/logo/one-id.png"} width={20} height={20} alt="OneID" className="inline-block" />
                         {t("buttton-login")}
-                    </Button>
+                    </Button> */}
 
                     <FieldDescription className="text-center">
                         {t("login-yes")} {" "}

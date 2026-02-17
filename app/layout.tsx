@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import Providers from "./providers";
 import { NextIntlClientProvider } from "next-intl";
-import { ToastContainer } from "react-toastify";
+
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin", "cyrillic"],
@@ -16,18 +17,15 @@ export const metadata: Metadata = {
     "O‘zbekiston Respublikasi Prezidenti huzuridagi Davlat siyosati va boshqaruvi akademiyasi qabul jarayonlarini yagona avtomatlashtirilgan axborot tizimi",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="uz">
       <body className={`${inter.variable} antialiased font-sans`}>
-        <NextIntlClientProvider>
-          {children}
-          <ToastContainer />
-        </NextIntlClientProvider>
+        <Providers>
+          <NextIntlClientProvider>
+            {children}
+          </NextIntlClientProvider>
+        </Providers>
       </body>
     </html>
   );

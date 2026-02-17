@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarNav } from "./sidebar-nav";
 import LanguageDropdown from "./langue-switch";
 import { UserNav } from "./nav-user";
+import Notifications from "./notifications";
 
 type Props = {
     title?: string;
@@ -17,7 +18,6 @@ type Props = {
 
 export function DashboardHeader({ title = "Dashboard" }: Props) {
     const [open, setOpen] = useState(false);
-
     return (
         <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur">
             <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
@@ -47,13 +47,11 @@ export function DashboardHeader({ title = "Dashboard" }: Props) {
                 </div>
 
                 <div className="ml-auto flex items-center gap-2">
-                    <Button variant="outline" size="icon" className="rounded-xl">
-                        <Bell className="size-5" />
-                    </Button>
+                    <Notifications />
                     <Separator orientation="vertical" className="h-8 hidden sm:block" />
-                    <div className="max-lg:hidden">
+                    {/* <div className="max-lg:hidden">
                         <LanguageDropdown align="center" />
-                    </div>
+                    </div> */}
                     <UserNav />
                 </div>
             </div>
