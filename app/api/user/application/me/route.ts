@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         if (!admission_id) return NextResponse.json({ success: false, error: "admission_id required" }, { status: 400 });
 
         const app = await ApplicationsModel.findOne({ admission_id, pinfl }).lean();
-        console.log(app);
+
         return NextResponse.json({ success: true, data: app }, { status: 200 });
     } catch (e) {
         console.error(e);

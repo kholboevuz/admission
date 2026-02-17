@@ -2,6 +2,7 @@
 
 import React from "react";
 import ProfileTabsCard from "@/components/profile-tabs-card";
+import { MalumotnomaBuilder } from "@/components/malumotnoma-builder";
 import { axiosClient } from "@/http/axios";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -71,10 +72,6 @@ function makeAvatarDataUrl(iip: any): string | null {
     return `data:${guessMimeFromBase64(b64)};base64,${b64}`;
 }
 
-function safe(v?: string | null) {
-    return v && v.trim().length ? v : "-";
-}
-
 function mapWorkToUi(workArr: any[]) {
     if (!Array.isArray(workArr)) return [];
     return workArr.map((w: any, idx: number) => ({
@@ -126,7 +123,12 @@ function mapEducationToUi(eduArr: any[]) {
     });
 }
 
-function buildProfileCardData(sessionUser: SessionResponse["user"], decoded: any, workUi: any[], eduUi: any[]) {
+function buildProfileCardData(
+    sessionUser: SessionResponse["user"],
+    decoded: any,
+    workUi: any[],
+    eduUi: any[]
+) {
     const root = decoded?.data || decoded;
     const iip = root?.data || root;
     const profile = iip?.profile || iip?.raw || {};
@@ -196,12 +198,14 @@ export default function Page() {
     const [error, setError] = React.useState<string | null>(null);
     const [cardData, setCardData] = React.useState<any | null>(null);
 
+    // ✅ viewMode: profile yoki malumotnoma
+    const [viewMode, setViewMode] = React.useState<"profile" | "malumotnoma">("profile");
+
     const loadProfile = React.useCallback(async (opts?: { forceRefresh?: boolean }) => {
         setLoading(true);
         setError(null);
 
         try {
-
             const sess = await axiosClient.get<SessionResponse>("/auth/session");
             const sessionUser = sess.data.user;
 
@@ -234,8 +238,13 @@ export default function Page() {
             if (!empRes.data?.success) throw new Error(empRes.data?.error || "Employment error");
             if (!eduRes.data?.success) throw new Error(eduRes.data?.error || "Education error");
 
-            const employmentRaw = Array.isArray(empRes.data.data) ? empRes.data.data : (empRes.data.data?.data ?? empRes.data.data ?? []);
-            const educationRaw = Array.isArray(eduRes.data.data) ? eduRes.data.data : (eduRes.data.data?.data ?? eduRes.data.data ?? []);
+            const employmentRaw = Array.isArray(empRes.data.data)
+                ? empRes.data.data
+                : (empRes.data.data?.data ?? empRes.data.data ?? []);
+
+            const educationRaw = Array.isArray(eduRes.data.data)
+                ? eduRes.data.data
+                : (eduRes.data.data?.data ?? eduRes.data.data ?? []);
 
             const workUi = mapWorkToUi(employmentRaw);
             const eduUi = mapEducationToUi(educationRaw);
@@ -270,7 +279,11 @@ export default function Page() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-sm text-muted-foreground">{error}</div>
-                        <Button className="mt-4" variant="outline" onClick={() => loadProfile({ forceRefresh: true })}>
+                        <Button
+                            className="mt-4"
+                            variant="outline"
+                            onClick={() => loadProfile({ forceRefresh: true })}
+                        >
                             Qayta yuklash (refresh bilan)
                         </Button>
                     </CardContent>
@@ -283,12 +296,22 @@ export default function Page() {
         return <div className="p-4 text-sm text-muted-foreground">Ma&apos;lumot topilmadi</div>;
     }
 
+    if (viewMode === "malumotnoma") {
+        return (
+            <MalumotnomaBuilder
+                data={cardData}
+                onBack={() => setViewMode("profile")}
+            />
+        );
+    }
+
     return (
         <div className="p-4">
             <ProfileTabsCard
                 data={cardData}
                 onRefresh={() => loadProfile({ forceRefresh: true })}
                 isRefreshing={loading}
+                onOpenMalumotnoma={() => setViewMode("malumotnoma")}
             />
         </div>
     );

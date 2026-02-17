@@ -2,13 +2,12 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { RefreshCw } from "lucide-react";
+import { FileText, RefreshCw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import {
     Table,
     TableBody,
@@ -77,6 +76,9 @@ type Props = {
     onDownloadPdf?: () => void | Promise<void>;
     isRefreshing?: boolean;
     isDownloading?: boolean;
+
+    // ✅ yangi: Ma’lumotnoma ochish
+    onOpenMalumotnoma?: () => void;
 };
 
 export default function ProfileTabsCard({
@@ -84,6 +86,7 @@ export default function ProfileTabsCard({
     className,
     onRefresh,
     isRefreshing,
+    onOpenMalumotnoma,
 }: Props) {
     return (
         <div className={cn("w-full", className)}>
@@ -95,6 +98,20 @@ export default function ProfileTabsCard({
                             <TabsTrigger value="general">Umumiy</TabsTrigger>
                             <TabsTrigger value="work">Ish joyi</TabsTrigger>
                             <TabsTrigger value="education">Ta&apos;lim</TabsTrigger>
+
+                            {/* ✅ Ma’lumotnoma TAB */}
+                            <TabsTrigger
+                                value="malumotnoma"
+                                onClick={(e) => {
+                                    // Tabs ichida content ko‘rsatmaymiz, alohida view ochamiz
+                                    e.preventDefault();
+                                    onOpenMalumotnoma?.();
+                                }}
+                                className="gap-2"
+                            >
+
+                                Ma&apos;lumotnoma
+                            </TabsTrigger>
                         </TabsList>
 
                         <div className="flex w-full gap-2 sm:w-auto sm:justify-end">
@@ -104,9 +121,7 @@ export default function ProfileTabsCard({
                                 onClick={onRefresh}
                                 disabled={!onRefresh || isRefreshing}
                             >
-                                <RefreshCw
-                                    className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")}
-                                />
+                                <RefreshCw className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")} />
                                 Yangilash
                             </Button>
                         </div>
@@ -146,9 +161,7 @@ export default function ProfileTabsCard({
 
                                 {/* Title (mobile) */}
                                 <div className="sm:hidden">
-                                    <div className="text-lg font-semibold leading-tight">
-                                        {data.fioTitle}
-                                    </div>
+                                    <div className="text-lg font-semibold leading-tight">{data.fioTitle}</div>
                                     <div className="mt-1 text-xs text-muted-foreground">
                                         Profil ma&apos;lumotlari
                                     </div>
@@ -157,21 +170,17 @@ export default function ProfileTabsCard({
 
                             {/* Title (desktop) */}
                             <div className="hidden sm:block">
-                                <div className="text-2xl font-semibold tracking-tight">
-                                    {data.fioTitle}
-                                </div>
+                                <div className="text-2xl font-semibold tracking-tight">{data.fioTitle}</div>
                                 <div className="mt-1 text-sm text-muted-foreground">
                                     Profil ma&apos;lumotlari
                                 </div>
                             </div>
 
-                            {/* right side meta (optional) */}
+                            {/* right side meta */}
                             <div className="sm:ml-auto">
                                 <div className="inline-flex items-center gap-2 rounded-xl border bg-background/60 px-3 py-2 text-xs text-muted-foreground">
                                     <span>JSHSHIR:</span>
-                                    <span className="font-medium text-foreground">
-                                        {data.passport.pinfl}
-                                    </span>
+                                    <span className="font-medium text-foreground">{data.passport.pinfl}</span>
                                 </div>
                             </div>
                         </div>
@@ -246,9 +255,7 @@ export default function ProfileTabsCard({
                                         {data.work?.length ? (
                                             data.work.map((row, idx) => (
                                                 <TableRow key={row.id} className="hover:bg-muted/30">
-                                                    <TableCell className="text-muted-foreground">
-                                                        {idx + 1}
-                                                    </TableCell>
+                                                    <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
                                                     <TableCell>{row.startDate}</TableCell>
                                                     <TableCell>{row.endDate ?? "-"}</TableCell>
                                                     <TableCell>{row.organization}</TableCell>
@@ -289,9 +296,7 @@ export default function ProfileTabsCard({
                                         {data.education?.length ? (
                                             data.education.map((row, idx) => (
                                                 <TableRow key={row.id} className="hover:bg-muted/30">
-                                                    <TableCell className="text-muted-foreground">
-                                                        {idx + 1}
-                                                    </TableCell>
+                                                    <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
                                                     <TableCell>{row.docSeriesNumber}</TableCell>
                                                     <TableCell>{row.institution}</TableCell>
                                                     <TableCell>{row.educationType}</TableCell>
@@ -343,7 +348,7 @@ function KeyValueGrid({
             {items.map((it, i) => (
                 <div key={`${it.label}-${i}`} className="rounded-xl border bg-muted/10 p-3">
                     <div className="text-xs text-muted-foreground">{it.label}</div>
-                    <div className="mt-1 text-sm font-medium break-words">{it.value}</div>
+                    <div className="mt-1 break-words text-sm font-medium">{it.value}</div>
                 </div>
             ))}
         </div>
