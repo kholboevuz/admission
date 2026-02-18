@@ -1,6 +1,6 @@
 import axios from "axios";
 
-export const SERVER_URL = '/api';
+export const SERVER_URL = `${process.env.NEXT_PUBLIC_BASE_URL}/api`;
 
 export const axiosClient = axios.create({
     baseURL: SERVER_URL,

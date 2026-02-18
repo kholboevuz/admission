@@ -18,11 +18,17 @@ async function getAuth(req: NextRequest) {
 }
 
 function safeBaseName(name: string) {
-    // path traversalni bloklaymiz
     if (!name) return null;
     const base = path.basename(name);
     if (base !== name) return null;
     return base;
+}
+
+function safeSlug(v: string) {
+
+    if (!v) return null;
+    if (!/^[a-zA-Z0-9_-]+$/.test(v)) return null;
+    return v;
 }
 
 export async function GET(req: NextRequest) {
@@ -32,15 +38,35 @@ export async function GET(req: NextRequest) {
         if (!pinfl) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
         const { searchParams } = new URL(req.url);
-        const admission_id = String(searchParams.get("admission_id") || "");
+
+        const scopeRaw = String(searchParams.get("scope") || "admission").trim().toLowerCase();
+        const scope = safeSlug(scopeRaw);
         const nameRaw = String(searchParams.get("name") || "");
 
         const name = safeBaseName(nameRaw);
-        if (!admission_id || !name) {
-            return NextResponse.json({ success: false, error: "admission_id and name required" }, { status: 400 });
+        if (!scope || !name) {
+            return NextResponse.json({ success: false, error: "scope and name required" }, { status: 400 });
         }
 
-        const abs = path.join(process.cwd(), "public", "uploads", "admission", admission_id, pinfl, name);
+        let abs: string;
+
+        if (scope === "admission") {
+            const admission_id = safeSlug(String(searchParams.get("admission_id") || "").trim());
+            if (!admission_id) {
+                return NextResponse.json({ success: false, error: "admission_id required" }, { status: 400 });
+            }
+
+            abs = path.join(process.cwd(), "public", "uploads", "admission", admission_id, pinfl, name);
+        } else if (scope === "international") {
+            const docType = safeSlug(String(searchParams.get("docType") || "").trim());
+            if (!docType) {
+                return NextResponse.json({ success: false, error: "docType required" }, { status: 400 });
+            }
+
+            abs = path.join(process.cwd(), "public", "uploads", "international", pinfl, docType, name);
+        } else {
+            return NextResponse.json({ success: false, error: "Invalid scope" }, { status: 400 });
+        }
 
         const buf = await fs.readFile(abs);
 

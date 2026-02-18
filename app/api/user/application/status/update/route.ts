@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
         const safeStatus = String(status).trim().toLowerCase();
         const safePinfl = String(pinfl).trim();
         const safeAdmissionId = String(admissionId).trim();
+        const safeApplicationId = String(applicationId).trim();
 
         if (!ALLOWED.has(safeStatus)) {
             return NextResponse.json(
@@ -37,18 +38,18 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const active = await AdmissionModel.findOne({ _id: safeAdmissionId, status: true }).lean();
-        if (!active) {
+        const admissionExists = await AdmissionModel.exists({ _id: safeAdmissionId });
+        if (!admissionExists) {
             return NextResponse.json(
-                { success: false, error: "No active admission found" },
+                { success: false, error: "Admission not found" },
                 { status: 404 }
             );
         }
 
         const updated = await ApplicationsModel.findOneAndUpdate(
-            { _id: applicationId, pinfl: safePinfl, admission_id: safeAdmissionId },
+            { _id: safeApplicationId, pinfl: safePinfl, admission_id: safeAdmissionId },
             { $set: { application_status: safeStatus } },
-            { returnDocument: "after" }
+            { new: true }
         ).lean();
 
         if (!updated) {

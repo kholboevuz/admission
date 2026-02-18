@@ -18,6 +18,9 @@ async function getAuth(req: NextRequest) {
     return payload as { pinfl?: string };
 }
 
+const ALLOWED_SCOPE = new Set(["admission", "international"]);
+const ALLOWED_DOCTYPE = new Set(["diploma", "nostrification", "other"]);
+
 export async function POST(req: NextRequest) {
     try {
         const auth = await getAuth(req);
@@ -28,11 +31,11 @@ export async function POST(req: NextRequest) {
 
         const form = await req.formData();
         const file = form.get("file");
-        const admission_id = String(form.get("admission_id") || "");
 
-        if (!admission_id) {
-            return NextResponse.json({ success: false, error: "admission_id required" }, { status: 400 });
-        }
+        const admission_id = String(form.get("admission_id") || "").trim();
+
+        const scopeRaw = String(form.get("scope") || "").trim().toLowerCase();
+        const docTypeRaw = String(form.get("docType") || "other").trim().toLowerCase();
 
         if (!file || !(file instanceof File)) {
             return NextResponse.json({ success: false, error: "file required" }, { status: 400 });
@@ -43,6 +46,7 @@ export async function POST(req: NextRequest) {
         }
 
         const bytes = Buffer.from(await file.arrayBuffer());
+
         const max = 2 * 1024 * 1024;
         if (bytes.length > max) {
             return NextResponse.json({ success: false, error: "Max 2MB" }, { status: 400 });
@@ -50,15 +54,36 @@ export async function POST(req: NextRequest) {
 
         const safeName = `${Date.now()}-${crypto.randomUUID()}.pdf`;
 
-        const dir = path.join(process.cwd(), "public", "uploads", "admission", admission_id, pinfl);
-        await fs.mkdir(dir, { recursive: true });
+        if (admission_id) {
+            const dir = path.join(process.cwd(), "public", "uploads", "admission", admission_id, pinfl);
+            await fs.mkdir(dir, { recursive: true });
 
-        const abs = path.join(dir, safeName);
-        await fs.writeFile(abs, bytes);
+            const abs = path.join(dir, safeName);
+            await fs.writeFile(abs, bytes);
 
-        const publicPath = `/uploads/admission/${admission_id}/${pinfl}/${safeName}`;
+            const publicPath = `/uploads/admission/${admission_id}/${pinfl}/${safeName}`;
+            return NextResponse.json({ success: true, data: { path: publicPath, name: safeName } }, { status: 200 });
+        }
 
-        return NextResponse.json({ success: true, data: { path: publicPath, name: safeName } }, { status: 200 });
+        const scope = scopeRaw || "international";
+        if (!ALLOWED_SCOPE.has(scope)) {
+            return NextResponse.json({ success: false, error: "Invalid scope" }, { status: 400 });
+        }
+
+        const docType = ALLOWED_DOCTYPE.has(docTypeRaw) ? docTypeRaw : "other";
+
+        if (scope === "international") {
+            const dir = path.join(process.cwd(), "public", "uploads", "international", pinfl, docType);
+            await fs.mkdir(dir, { recursive: true });
+
+            const abs = path.join(dir, safeName);
+            await fs.writeFile(abs, bytes);
+
+            const publicPath = `/uploads/international/${pinfl}/${docType}/${safeName}`;
+            return NextResponse.json({ success: true, data: { path: publicPath, name: safeName } }, { status: 200 });
+        }
+
+        return NextResponse.json({ success: false, error: "Unsupported scope" }, { status: 400 });
     } catch (e) {
         console.error(e);
         return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });

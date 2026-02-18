@@ -16,6 +16,9 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import Link from "next/link";
+import AddInternationalDiplom from "./add-international-diplom";
+import { axiosClient } from "@/http/axios";
 
 type PassportInfo = {
     fullName: string;
@@ -77,8 +80,18 @@ type Props = {
     isRefreshing?: boolean;
     isDownloading?: boolean;
 
-    // ✅ yangi: Ma’lumotnoma ochish
     onOpenMalumotnoma?: () => void;
+};
+
+type InternationalDiplomaItem = {
+    _id: string;
+    university: string;
+    direction: string;
+    educationType: "bachelor" | "master";
+    diplomaNumber: string;
+    diplomaFilePath?: string;
+    nostrificationFilePath?: string;
+    createdAt?: string;
 };
 
 export default function ProfileTabsCard({
@@ -88,10 +101,49 @@ export default function ProfileTabsCard({
     isRefreshing,
     onOpenMalumotnoma,
 }: Props) {
+    const [intl, setIntl] = React.useState<InternationalDiplomaItem[]>([]);
+
+    const loadInternational = React.useCallback(async () => {
+        try {
+            const res = await axiosClient.get("/user/international-diploma");
+            const json = res.data as { success: boolean; data?: InternationalDiplomaItem[] };
+            if (json?.success) setIntl(json.data || []);
+            else setIntl([]);
+        } catch {
+            setIntl([]);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        loadInternational();
+    }, [loadInternational]);
+
+    const intlAsEducation: EducationItem[] = React.useMemo(() => {
+        return (intl || []).map((x) => ({
+            id: `intl-${x._id}`,
+            docSeriesNumber: x.diplomaNumber,
+            institution: x.university,
+            educationType: x.educationType === "bachelor" ? "Bakalavr (Xalqaro)" : "Magistr (Xalqaro)",
+            specialty: x.direction,
+            graduationYear: x.createdAt ? new Date(x.createdAt).getFullYear().toString() : null,
+        }));
+    }, [intl]);
+
+    const intlMap = React.useMemo(() => {
+        const m = new Map<string, InternationalDiplomaItem>();
+        (intl || []).forEach((x) => m.set(`intl-${x._id}`, x));
+        return m;
+    }, [intl]);
+
+    const mergedEducation: EducationItem[] = React.useMemo(() => {
+        const base = Array.isArray(data.education) ? data.education : [];
+        return [...base, ...intlAsEducation];
+    }, [data.education, intlAsEducation]);
+
     return (
         <div className={cn("w-full", className)}>
             <Tabs defaultValue="general" className="w-full">
-                {/* Sticky header (tabs + actions) */}
+
                 <div className="sticky top-0 z-10 -mx-2 px-2 pb-3 pt-2 backdrop-blur supports-[backdrop-filter]:bg-background/70">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <TabsList className="h-10 w-full sm:w-auto">
@@ -99,11 +151,9 @@ export default function ProfileTabsCard({
                             <TabsTrigger value="work">Ish joyi</TabsTrigger>
                             <TabsTrigger value="education">Ta&apos;lim</TabsTrigger>
 
-                            {/* ✅ Ma’lumotnoma TAB */}
                             <TabsTrigger
                                 value="malumotnoma"
                                 onClick={(e) => {
-                                    // Tabs ichida content ko‘rsatmaymiz, alohida view ochamiz
                                     e.preventDefault();
                                     onOpenMalumotnoma?.();
                                 }}
@@ -277,7 +327,13 @@ export default function ProfileTabsCard({
                 <TabsContent value="education" className="mt-4">
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-base">Ta&apos;lim ma&apos;lumotlari</CardTitle>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-base">Ta&apos;lim ma&apos;lumotlari</CardTitle>
+                                <AddInternationalDiplom load={onRefresh} />
+                            </div>
+                            <div className="mt-3 rounded-xl border font-semibold bg-yellow-50 p-3 text-sm text-yellow-900">
+                                Hurmatli foydalanuvchi diplom ma'lumotlaringiz ko'rinmagan holda, <Link href={"https://diplom.edu.uz"} target="_blank" className="font-bold underline">diplom.edu.uz</Link> tizimi yordamida diplom ma'lumotlaringizni kiritishingiz mumkin.
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <div className="overflow-x-auto rounded-xl border">
@@ -293,20 +349,40 @@ export default function ProfileTabsCard({
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {data.education?.length ? (
-                                            data.education.map((row, idx) => (
-                                                <TableRow key={row.id} className="hover:bg-muted/30">
-                                                    <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
-                                                    <TableCell>{row.docSeriesNumber}</TableCell>
-                                                    <TableCell>{row.institution}</TableCell>
-                                                    <TableCell>{row.educationType}</TableCell>
-                                                    <TableCell>{row.specialty}</TableCell>
-                                                    <TableCell>{row.graduationYear ?? "-"}</TableCell>
-                                                </TableRow>
-                                            ))
+                                        {mergedEducation?.length ? (
+                                            mergedEducation.map((row, idx) => {
+                                                const intlItem = String(row.id).startsWith("intl-") ? intlMap.get(String(row.id)) : null;
+
+                                                return (
+                                                    <TableRow key={row.id} className="hover:bg-muted/30">
+                                                        <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                                                        <TableCell>{row.docSeriesNumber}</TableCell>
+                                                        <TableCell>{row.institution}</TableCell>
+                                                        <TableCell>{row.educationType}</TableCell>
+                                                        <TableCell>{row.specialty}</TableCell>
+                                                        <TableCell>{row.graduationYear ?? "-"}</TableCell>
+
+                                                        <TableCell className="text-right">
+                                                            {intlItem ? (
+                                                                <AddInternationalDiplom
+                                                                    mode="edit"
+                                                                    item={intlItem}
+                                                                    onSaved={loadInternational}
+                                                                    onDeleted={loadInternational}
+                                                                    load={onRefresh}
+                                                                />
+                                                            ) : (
+                                                                <span className="text-muted-foreground text-xs">—</span>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })
                                         ) : (
-                                            <EmptyRow colSpan={6} text="Ta'lim ma'lumotlari topilmadi." />
+                                            <EmptyRow colSpan={7} text="Ta'lim ma'lumotlari topilmadi." />
                                         )}
+
+
                                     </TableBody>
                                 </Table>
                             </div>

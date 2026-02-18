@@ -90,8 +90,6 @@ function CenterLoader() {
 }
 
 export default function Page() {
-    const router = useRouter();
-
     const [bootLoading, setBootLoading] = React.useState(true);
 
     const [isOpen, setIsOpen] = React.useState<boolean>(false);
@@ -104,14 +102,12 @@ export default function Page() {
 
     const [malumotnoma, setMalumotnoma] = React.useState<boolean | null>(null);
 
-    // Bizga doim pinfl kerak (ariza bo‘lmasa ham)
     const [pinfl, setPinfl] = React.useState<string | null>(null);
 
     const loadAll = React.useCallback(async () => {
         setBootLoading(true);
 
         try {
-            // 0) Session pinfl
             let sessionPinfl: string | null = null;
             try {
                 const sess = await axiosClient.get<SessionResponse>("/auth/session");
@@ -121,7 +117,6 @@ export default function Page() {
             }
             setPinfl(sessionPinfl);
 
-            // 1) Active admission (qabul)
             let active: ActiveAdmission | null = null;
             try {
                 const a = await axiosClient.get("/user/application/active");
@@ -130,16 +125,15 @@ export default function Page() {
                 active = null;
             }
 
-            // 2) Qabul ochiq/yopiq
             try {
                 const s = await axiosClient.get("/user/application/status");
-                setIsOpen(!!s.data?.data?.status);
+                console.log("Status response:", s.data);
+                setIsOpen(!!s.data?.data?.ok);
             } catch {
                 setIsOpen(false);
             }
-
-            // admission faqat status=true bo‘lsa
-            setAdmission(active && active.status ? active : null);
+            console.log("Active admission:", active);
+            setAdmission(active ? active : null);
 
             let app: ExistingApp | null = null;
             try {
@@ -228,7 +222,7 @@ export default function Page() {
             />
         );
     }
-
+    console.log("Is open:", isOpen, "Admission:", admission, "Has app:", hasApp, "Status:", st);
     if (!isOpen || !admission) {
         if (hasApp) {
             return (
