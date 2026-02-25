@@ -21,32 +21,28 @@ export async function GET(req: NextRequest) {
         await connectDB();
 
         const auth = await getAuth(req);
-        const pinfl = auth?.pinfl;
+        const pinfl = auth?.pinfl ? String(auth.pinfl) : null;
+
         if (!pinfl) {
             return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
         }
 
-        const active = await AdmissionModel
-            .findOne({ status: true })
-            .sort({ createdAt: -1 })
-            .lean();
+        const active = await AdmissionModel.findOne({ status: true }).sort({ _id: -1 }).lean();
 
         if (active) {
             return NextResponse.json({ success: true, data: active }, { status: 200 });
         }
 
-        const last = await AdmissionModel
-            .findOne({})
-            .sort({ createdAt: -1 })
-            .lean();
+        const last = await AdmissionModel.findOne({}).sort({ _id: -1 }).lean();
 
         if (!last) {
             return NextResponse.json({ success: true, data: null }, { status: 200 });
         }
 
-        const userHasApplication = await ApplicationsModel
-            .findOne({ pinfl, admission_id: String(last._id) })
-            .lean();
+        const userHasApplication = await ApplicationsModel.findOne({
+            pinfl,
+            admission_id: String(last._id),
+        }).lean();
 
         if (userHasApplication) {
             return NextResponse.json({ success: true, data: last }, { status: 200 });

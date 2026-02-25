@@ -8,6 +8,8 @@ export interface IStaff extends Document {
     document: string;
     brithday: Date;
 
+    admission_id: string;
+
     role: "admin" | "modirator";
     status: boolean;
 
@@ -28,6 +30,8 @@ const StaffSchema: Schema = new Schema(
         pinfl: { type: String, required: true, unique: true, index: true },
         document: { type: String, required: true, index: true },
         brithday: { type: Date, required: true },
+
+        admission_id: { type: String, required: true, unique: true, index: true },
 
         role: { type: String, enum: ["admin", "modirator"], required: true },
         status: { type: Boolean, default: true },

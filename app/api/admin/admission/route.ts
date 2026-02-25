@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/config/dbconn";
 import ChoiceModel from "@/models/choice-models";
 import AdmissionModel from "@/models/admission-models";
+import { success } from "zod";
 
 function toISODateString(d: string | Date) {
     const date = typeof d === "string" ? new Date(d) : d;
@@ -96,7 +97,7 @@ export async function GET() {
     try {
         await connectDB();
         const admissions = await AdmissionModel.find().sort({ _id: -1 });
-        return NextResponse.json({ data: admissions }, { status: 200 });
+        return NextResponse.json({ success: true, data: admissions }, { status: 200 });
     } catch (error) {
         console.error("Error:", error);
         return NextResponse.json({ error: extractMessage(error) }, { status: 500 });

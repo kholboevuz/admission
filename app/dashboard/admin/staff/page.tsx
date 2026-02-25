@@ -1,14 +1,21 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+
+import { useEffect, useState } from "react";
 import {
-    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Pencil } from "lucide-react";
 import { axiosClient } from "@/http/axios";
 import StaffAddDialog from "@/components/staff-add-dialog";
+import StaffEditDialog from "@/components/staff-edit-dialog";
 
 type StaffRow = {
     _id: string;
@@ -20,6 +27,7 @@ type StaffRow = {
     role: "admin" | "modirator";
     status: boolean;
     allowedIps: string[];
+    admissionUuuid?: string;
     createdAt: string;
 };
 
@@ -42,18 +50,15 @@ export default function Page() {
     }, []);
 
     const onToggle = async (id: string, next: boolean) => {
-
         setRows((p) => p.map((r) => (r._id === id ? { ...r, status: next } : r)));
         try {
             await axiosClient.patch("/admin/staff/status", { id, status: next });
         } catch (e) {
-
             setRows((p) => p.map((r) => (r._id === id ? { ...r, status: !next } : r)));
         }
     };
 
     const onDelete = async (id: string) => {
-
         const prev = rows;
         setRows((p) => p.filter((r) => r._id !== id));
         try {
@@ -64,14 +69,15 @@ export default function Page() {
     };
 
     return (
-        <div className="space-y-4" >
+        <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-semibold">Xodim</h1>
                     <p className="text-sm text-muted-foreground">Admin / modiratorlarni boshqarish</p>
                 </div>
+
                 <StaffAddDialog
-                    onCreated={() => load()}
+                    onCreated={load}
                     trigger={
                         <Button className="gap-2">
                             <Plus className="h-4 w-4" />
@@ -111,26 +117,49 @@ export default function Page() {
                                     <TableCell className="font-mono text-xs">{r.pinfl}</TableCell>
                                     <TableCell className="font-mono text-xs">{r.document}</TableCell>
                                     <TableCell>
-                                        <Badge variant={r.role === "admin" ? "default" : "secondary"}>
-                                            {r.role}
-                                        </Badge>
+                                        <Badge variant={r.role === "admin" ? "default" : "secondary"}>{r.role}</Badge>
                                     </TableCell>
                                     <TableCell className="text-sm">
-                                        {r.allowedIps?.length ? `${r.allowedIps.length} ta` : "—"}
+                                        {r.allowedIps?.length ? (
+                                            <div className="flex flex-wrap gap-1">
+                                                {r.allowedIps.map((ip, idx) => (
+                                                    <Badge key={ip + idx} variant="outline" className="font-mono text-[11px]">
+                                                        {ip}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            "—"
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
                                             <Switch checked={r.status} onCheckedChange={(v) => onToggle(r._id, v)} />
-                                            <span className="text-xs text-muted-foreground">
-                                                {r.status ? "true" : "false"}
-                                            </span>
+                                            <span className="text-xs text-muted-foreground">{r.status ? "true" : "false"}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <Button variant="destructive" size="sm" className="gap-2" onClick={() => onDelete(r._id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                            O‘chirish
-                                        </Button>
+                                        <div className="flex justify-end gap-2">
+                                            <StaffEditDialog
+                                                staff={r}
+                                                onUpdated={load}
+                                                trigger={
+                                                    <Button size="sm" className="gap-2">
+                                                        <Pencil className="h-4 w-4" />
+
+                                                    </Button>
+                                                }
+                                            />
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                className="gap-2"
+                                                onClick={() => onDelete(r._id)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))

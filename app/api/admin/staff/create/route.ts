@@ -5,6 +5,7 @@ import StaffModel from "@/models/staff-model";
 import bcrypt from "bcrypt";
 import axios from "axios";
 import crypto from "crypto";
+import AdmissionModel from "@/models/admission-models";
 
 function getEncKey(): Buffer {
     const b64 = process.env.DATA_ENC_KEY;
@@ -94,6 +95,13 @@ export async function POST(req: NextRequest) {
                 { status: 400 }
             );
         }
+        const admissionUuuid = body?.admissionUuuid;
+        if (!admissionUuuid) {
+            return NextResponse.json(
+                { success: false, message: "admissionUuuid talab qilinadi" },
+                { status: 400 }
+            );
+        }
 
         const existsStaff = await StaffModel.findOne({ pinfl }).lean();
         if (existsStaff) {
@@ -110,7 +118,13 @@ export async function POST(req: NextRequest) {
                 { status: 400 }
             );
         }
-
+        const admission = await AdmissionModel.findOne({ uuuid: admissionUuuid }).lean();
+        if (!admission) {
+            return NextResponse.json(
+                { success: false, message: "Tanlangan admission topilmadi yoki active emas" },
+                { status: 400 }
+            );
+        }
         const mspdUrl = process.env.MSPD_URL;
         const mspdSecret = process.env.MSPD_SECRET;
         if (!mspdUrl || !mspdSecret) {
@@ -183,6 +197,7 @@ export async function POST(req: NextRequest) {
             allowedIps,
             encData,
             keyId,
+            admission_id: admissionUuuid,
         });
 
         return NextResponse.json(
@@ -198,6 +213,7 @@ export async function POST(req: NextRequest) {
                     document,
                     role,
                     allowedIps,
+                    admissionUuuid,
                 },
             },
             { status: 201 }
