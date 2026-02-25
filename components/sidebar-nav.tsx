@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { DASHBOARD_NAV_ADMIN, DASHBOARD_NAV_USER } from "./nav-config";
+import { DASHBOARD_NAV_ADMIN, DASHBOARD_NAV_USER, DASHBOARD_NAV_MODERATOR } from "./nav-config";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,7 +28,7 @@ type SessionResponse = {
         id: string;
         firstname: string;
         lastname: string;
-        role: string; // "admin" | "user" ...
+        role: string;
         pinfl: string;
     };
 };
@@ -56,10 +56,10 @@ export function SidebarNav({ onNavigate }: Props) {
     const [session, setSession] = useState<SessionResponse | null>(null);
     const sessionRole = String(session?.user?.role || "").toLowerCase();
 
-    // ✅ role bo‘yicha nav tanlash
     const navItems = useMemo(() => {
-        // agar session hali kelmagan bo‘lsa ham user nav ko‘rsatib turing (xohlasangiz skeleton ham qilsa bo‘ladi)
+
         if (sessionRole === "admin") return DASHBOARD_NAV_ADMIN;
+        if (sessionRole === "modirator") return DASHBOARD_NAV_MODERATOR;
         return DASHBOARD_NAV_USER;
     }, [sessionRole]);
 
@@ -135,12 +135,11 @@ export function SidebarNav({ onNavigate }: Props) {
             <ScrollArea className="flex-1 px-3 overflow-y-auto">
                 <div className="space-y-4 py-4">
                     <div className="space-y-1">
-                        {/* ✅ oldin DASHBOARD_NAV_USER edi, endi navItems */}
+
                         {navItems.map((item) => {
                             const Icon = item.icon;
                             const isActive = pathname === item.href;
 
-                            // (Sizdagi "admission" collapsible qismi o‘zgarmaydi)
                             const isAdmissionItem = item.href === "/dashboard/admin/admission";
 
                             if (isAdmissionItem) {

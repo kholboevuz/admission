@@ -83,9 +83,6 @@ function buildSensitivePayload(iipData: any) {
     };
 }
 
-/* =========================
-   Route
-========================= */
 export async function POST(req: NextRequest) {
     let createdUserId: string | null = null;
 
@@ -95,7 +92,7 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const password = body?.password;
         const document = body?.document;
-        const brithday = body?.brithday; // siz shunaqa nomlab qo'ygansiz
+        const brithday = body?.brithday;
         const role = body?.role || "user";
         const pinfl = body?.pinfl;
 

@@ -10,6 +10,7 @@ import {
     Settings2,
     Users2,
     UserCheck2,
+    FileCheck,
 } from "lucide-react";
 
 export type NavItem = {
@@ -33,4 +34,11 @@ export const DASHBOARD_NAV_USER: NavItem[] = [
     { title: "Ariza yuborish", href: "/dashboard/user/application", icon: FolderKanban },
     { title: "Nizom", href: "/dashboard/user/regulation", icon: ShieldCheck },
     { title: "PF-78 Farmon", href: "/dashboard/user/decree", icon: Info },
+];
+
+export const DASHBOARD_NAV_MODERATOR: NavItem[] = [
+    { title: "Arizalar", href: "/dashboard/manager", icon: FileText },
+    { title: "Mening arizalarim", href: "/dashboard/manager/my-applications", icon: FileCheck },
+    { title: "PF-78 Farmon", href: "/dashboard/manager/decree", icon: Info },
+    { title: "Nizom", href: "/dashboard/manager/regulation", icon: ShieldCheck },
 ];

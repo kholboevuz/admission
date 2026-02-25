@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { jwtVerify } from "jose";
+import { UPLOAD_ROOT, assertSafeSubPath } from "@/lib/upload-path";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ async function getAuth(req: NextRequest) {
     if (!token) return null;
 
     const secret = process.env.JWT_SECRET;
-    if (!secret) throw new Error("JWT_SECRET env yo'q");
+    if (!secret) throw new Error("JWT_SECRET env topilmadi");
 
     const key = new TextEncoder().encode(secret);
     const { payload } = await jwtVerify(token, key);
@@ -31,61 +32,72 @@ export async function POST(req: NextRequest) {
 
         const form = await req.formData();
         const file = form.get("file");
-
         const admission_id = String(form.get("admission_id") || "").trim();
-
         const scopeRaw = String(form.get("scope") || "").trim().toLowerCase();
         const docTypeRaw = String(form.get("docType") || "other").trim().toLowerCase();
 
         if (!file || !(file instanceof File)) {
             return NextResponse.json({ success: false, error: "file required" }, { status: 400 });
         }
-
         if (file.type !== "application/pdf") {
-            return NextResponse.json({ success: false, error: "Only PDF allowed" }, { status: 400 });
+            return NextResponse.json({ success: false, error: "Faqat PDF qabul qilinadi" }, { status: 400 });
         }
 
         const bytes = Buffer.from(await file.arrayBuffer());
-
-        const max = 2 * 1024 * 1024;
-        if (bytes.length > max) {
-            return NextResponse.json({ success: false, error: "Max 2MB" }, { status: 400 });
+        if (bytes.length > 2 * 1024 * 1024) {
+            return NextResponse.json({ success: false, error: "Maksimal hajm 2MB" }, { status: 400 });
         }
 
         const safeName = `${Date.now()}-${crypto.randomUUID()}.pdf`;
 
         if (admission_id) {
-            const dir = path.join(process.cwd(), "public", "uploads", "admission", admission_id, pinfl);
+            // admission_id faqat xavfsiz belgilardan iborat bo'lishi kerak
+            if (!/^[a-zA-Z0-9_-]+$/.test(admission_id)) {
+                return NextResponse.json({ success: false, error: "Noto'g'ri admission_id" }, { status: 400 });
+            }
+
+            const dir = path.join(UPLOAD_ROOT, "admission", admission_id, pinfl);
+            assertSafeSubPath(UPLOAD_ROOT, dir);
+
             await fs.mkdir(dir, { recursive: true });
+            await fs.writeFile(path.join(dir, safeName), bytes);
 
-            const abs = path.join(dir, safeName);
-            await fs.writeFile(abs, bytes);
-
-            const publicPath = `/uploads/admission/${admission_id}/${pinfl}/${safeName}`;
-            return NextResponse.json({ success: true, data: { path: publicPath, name: safeName } }, { status: 200 });
+            return NextResponse.json({
+                success: true,
+                data: {
+                    // Fayl URL'i — GET route orqali olinadi (public/ emas)
+                    path: `/api/files?scope=admission&admission_id=${admission_id}&name=${safeName}`,
+                    name: safeName,
+                },
+            });
         }
 
         const scope = scopeRaw || "international";
         if (!ALLOWED_SCOPE.has(scope)) {
-            return NextResponse.json({ success: false, error: "Invalid scope" }, { status: 400 });
+            return NextResponse.json({ success: false, error: "Noto'g'ri scope" }, { status: 400 });
         }
 
         const docType = ALLOWED_DOCTYPE.has(docTypeRaw) ? docTypeRaw : "other";
 
         if (scope === "international") {
-            const dir = path.join(process.cwd(), "public", "uploads", "international", pinfl, docType);
+            const dir = path.join(UPLOAD_ROOT, "international", pinfl, docType);
+            assertSafeSubPath(UPLOAD_ROOT, dir);
+
             await fs.mkdir(dir, { recursive: true });
+            await fs.writeFile(path.join(dir, safeName), bytes);
 
-            const abs = path.join(dir, safeName);
-            await fs.writeFile(abs, bytes);
-
-            const publicPath = `/uploads/international/${pinfl}/${docType}/${safeName}`;
-            return NextResponse.json({ success: true, data: { path: publicPath, name: safeName } }, { status: 200 });
+            return NextResponse.json({
+                success: true,
+                data: {
+                    path: `/api/files?scope=international&docType=${docType}&name=${safeName}`,
+                    name: safeName,
+                },
+            });
         }
 
-        return NextResponse.json({ success: false, error: "Unsupported scope" }, { status: 400 });
+        return NextResponse.json({ success: false, error: "Qo'llab-quvvatlanmagan scope" }, { status: 400 });
     } catch (e) {
         console.error(e);
-        return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
+        return NextResponse.json({ success: false, error: "Server xatosi" }, { status: 500 });
     }
 }

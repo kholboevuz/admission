@@ -59,8 +59,9 @@ export function LoginForm({
       if (payload?.success) {
         showToast(payload.message || "Muvaffaqiyatli kirdingiz", ToastType.Success);
 
-        const role = payload?.user?.role; // backend login responseda user.role bor
+        const role = payload?.user?.role;
         if (role === "admin") router.push("/dashboard/admin");
+        else if (role === "modirator") router.push("/dashboard/manager");
         else router.push("/dashboard/user");
 
         form.reset();

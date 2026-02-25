@@ -93,7 +93,7 @@ function mapExistingToWizard(existing: ExistingApp | null): WizardData {
                 hasCertificate: step1.isCertified ? "yes" : "no",
                 examLanguage: step1.exam_language ?? "en",
                 certificateFile: undefined,
-                certificatePath: step1.certificate_file ?? undefined, // ✅ MUHIM
+                certificatePath: step1.certificate_file ?? undefined,
             }
             : undefined,
         essay: existing?.esse ? { essay: existing.esse } : undefined,

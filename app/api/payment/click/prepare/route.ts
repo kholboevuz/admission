@@ -29,7 +29,6 @@ function json(data: any, status = 200) {
     return NextResponse.json(data, { status });
 }
 
-// Har xil Content-Type'larni o‘qish:
 async function parsePrepareBody(req: NextRequest): Promise<PrepareBody | null> {
     const ct = req.headers.get("content-type") || "";
 
@@ -74,8 +73,6 @@ async function parsePrepareBody(req: NextRequest): Promise<PrepareBody | null> {
             } as PrepareBody;
         }
 
-        // Ba'zi hollarda provayder POST bilan query-string ham yuborishi mumkin
-        // (kam uchraydi, lekin himoya uchun):
         const url = new URL(req.url);
         if (url.searchParams.has("click_trans_id")) {
             const q = url.searchParams;
@@ -121,7 +118,7 @@ export async function POST(req: NextRequest) {
         } = body;
 
 
-        const secret = "4lwV3OfcVDMEU";
+        const secret = process.env.NEXT_PUBLIC_PAYMENT_SECRET_KEY || "";
 
         const ok = clickCheckTokenPrepare(
             {
@@ -157,7 +154,7 @@ export async function POST(req: NextRequest) {
                 400
             );
         }
-
+        console.log("Amount is valid:", merchant_trans_id);
         const user = await UsersModel.findOne({ pinfl: merchant_trans_id });
         console.log({ error: ClickError.UserNotFound, error_note: "User not found" })
         if (!user) {

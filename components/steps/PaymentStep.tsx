@@ -99,7 +99,7 @@ export function PaymentStep({ admissionId, amount = 206_000, onBack, onPaid, onL
                     params: { admission_id: admissionId },
                     withCredentials: true,
                 });
-
+                console.log("Payment status response:", res.data);
                 const ok = !!res.data?.success;
                 if (!ok) throw new Error("status failed");
 
@@ -136,11 +136,14 @@ export function PaymentStep({ admissionId, amount = 206_000, onBack, onPaid, onL
                 { withCredentials: true }
             );
 
-            const url = res.data?.data?.paymentUrl as string | undefined;
-            if (!res.data?.success || !url) throw new Error("payment init failed");
+            const ok = !!res.data?.success && !!res.data?.orderId;
+            if (!ok) {
+                showToast("To‘lovni boshlashda xatolik", ToastType.Error);
+                return;
+            }
 
-            setPaymentUrl(url);
-            window.open(url, "_blank", "noopener,noreferrer");
+            window.open(res.data.paymentUrl);
+
         } catch (e) {
             console.error(e);
             showToast("To‘lovni boshlashda xatolik", ToastType.Error);
@@ -162,11 +165,16 @@ export function PaymentStep({ admissionId, amount = 206_000, onBack, onPaid, onL
 
             const ok = !!res.data?.success && !!res.data?.data?.payment_status;
             if (!ok) throw new Error("confirm failed");
+            const isPaid = !!res.data?.data?.payment_status;
 
-            setPaid(true);
-            setPaymentUrl(null);
-            onPaidRef.current?.();
-            showToast("To‘lov tasdiqlandi", ToastType.Success);
+            if (isPaid) {
+                setPaid(true);
+                setPaymentUrl(null);
+                onPaidRef.current?.();
+                showToast("To‘lov tasdiqlandi", ToastType.Success);
+            } else {
+                showToast("To‘lov tasdiqlanmadi (yoki hali tushmagan).", ToastType.Error);
+            }
         } catch (e) {
             console.error(e);
             showToast("To‘lov tasdiqlanmadi (yoki hali tushmagan).", ToastType.Error);
@@ -223,7 +231,7 @@ export function PaymentStep({ admissionId, amount = 206_000, onBack, onPaid, onL
                                 <span className="rounded-full bg-foreground px-3 py-1 text-xs font-semibold text-background">
                                     Yarim BHM
                                 </span>
-                                <span className="text-xs text-muted-foreground">To‘lovdan so‘ng “Tasdiqlash” tugmasini bosing.</span>
+                                <span className="text-xs text-muted-foreground">To‘lovdan so‘ng “To'lovni tekshirish” tugmasini bosing.</span>
                             </div>
 
                             <div className="mt-3 flex items-end justify-between gap-3">

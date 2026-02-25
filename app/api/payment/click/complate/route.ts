@@ -14,6 +14,7 @@ import { connectDB } from "@/config/dbconn";
 
 import ClickModel from "@/models/click-transaction-model";
 import OrderModel from "@/models/order-models";
+import ApplicationsModel from "@/models/application-models";
 
 type CompleteBody = {
     click_trans_id: string;
@@ -89,7 +90,6 @@ async function parseCompleteBody(req: NextRequest): Promise<CompleteBody | null>
             };
         }
 
-        // Ehtiyot chorasi: POST lekin query-string bo‘lishi mumkin
         const url = new URL(req.url);
         if (url.searchParams.has("click_trans_id")) {
             const q = url.searchParams;
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
             error,
         } = body;
 
-        const secret = "4lwV3OfcVDMEU";
+        const secret = process.env.NEXT_PUBLIC_PAYMENT_SECRET_KEY || "";
         if (!secret) {
             return json(
                 { error: ClickError.BadRequest, error_note: "CLICK_SECRET_KEY not set" },
@@ -147,7 +147,6 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Imzo tekshiruvi
         const ok = clickCheckTokenComplete(
             {
                 click_trans_id: String(click_trans_id),
@@ -166,12 +165,10 @@ export async function POST(req: NextRequest) {
             return json({ error: ClickError.SignFailed, error_note: "Invalid sign" }, 400);
         }
 
-        // Action tekshiruvi
         if (Number(action) !== ClickAction.Complete) {
             return json({ error: ClickError.ActionNotFound, error_note: "Action not found" }, 400);
         }
 
-        // Summani qat’iy tekshirish
         const expected = ((Number(FIXED_AMOUNT) * 0.01) + Number(FIXED_AMOUNT));
         if (Number(amount) !== expected) {
             return json(
@@ -180,7 +177,6 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Prepare bosqichi yozuvi mavjudmi?
         const prepared = await ClickModel.findOne({
             prepare_id: Number(merchant_prepare_id),
             provider: "click",
@@ -194,8 +190,7 @@ export async function POST(req: NextRequest) {
         }
 
         const pinfl = prepared.user;
-
-        // Agar foydalanuvchi uchun allaqachon to‘lov yakunlangan bo‘lsa
+        console.log("Complate case in Prepared transaction found for user:", pinfl);
         const alreadyPaid = await ClickModel.findOne({
             user: pinfl,
             state: TransactionState.Paid,
@@ -205,7 +200,6 @@ export async function POST(req: NextRequest) {
             return json({ error: ClickError.AlreadyPaid, error_note: "Already paid for course" }, 400);
         }
 
-        // Shu transaksiyaning o‘zi bekor qilinganmi?
         const trx = await ClickModel.findOne({ id: String(click_trans_id) });
         if (trx && trx.state === ClickError.TransactionCanceled) {
             return json(
@@ -216,7 +210,6 @@ export async function POST(req: NextRequest) {
 
         const time = Date.now();
 
-        // CLICK protokoli: error === 0 => success, aks holda xatolik
         if (typeof error === "number" && error !== 0) {
             await ClickModel.findOneAndUpdate(
                 { id: String(click_trans_id) },
@@ -224,31 +217,44 @@ export async function POST(req: NextRequest) {
                 { upsert: false }
             );
 
-            // CLICK ga mos javob (o‘z xatolik kodini qaytaramiz)
             return json(
                 {
                     click_trans_id: String(click_trans_id),
                     merchant_trans_id: pinfl,
                     merchant_confirm_id: time,
-                    error, // provayder xatolik kodi
+                    error,
                     error_note: "Payment canceled",
                 },
                 200
             );
         }
 
-        // Muvaffaqiyatli to‘lov
         await ClickModel.findOneAndUpdate(
             { id: String(click_trans_id) },
             { state: TransactionState.Paid, perform_time: time, provider: "click" },
             { upsert: true }
         );
 
-        // Buyurtma holatini yangilash
+        const order = await OrderModel.findOne({ user: pinfl })
+        console.log("Order found for user:", order);
+        if (!order) {
+            return json({ error: ClickError.TransactionNotFound, error_note: "Order not found" }, 400);
+        }
+        const admissionId = order?.admission_id;
+
+        await ApplicationsModel.findOneAndUpdate({
+            admission_id: admissionId,
+            pinfl: pinfl,
+        }, {
+            payment_status: true,
+            application_status: "paid",
+        })
+
         await OrderModel.findOneAndUpdate(
             { user: merchant_trans_id },
             { status: true },
         );
+
 
         return json({
             click_trans_id: String(click_trans_id),
