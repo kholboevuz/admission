@@ -8,18 +8,15 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, FileDown, Loader2 } from "lucide-react";
+import { Plus, Trash2, FileDown, Loader2, Briefcase, ChevronDown, ChevronUp } from "lucide-react";
 import { axiosClient } from "@/http/axios";
 import { showToast, ToastType } from "@/utils/toast-utils";
 import html2pdf from "html2pdf.js";
 
-// ─────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────
 type WorkItem = {
-    id: string | number;
-    startDate: string;
-    endDate: string;
+    id?: string | number;
+    startDate?: string;
+    endDate?: string;
     organization: string;
     position: string;
     department?: string;
@@ -49,9 +46,6 @@ type Props = {
     onBack: () => void;
 };
 
-// ─────────────────────────────────────────────
-// Zod schema
-// ─────────────────────────────────────────────
 const RelativeSchema = z.object({
     relation: z.string().min(2, "Qarindoshligi majburiy"),
     fio: z.string().min(5, "F.I.Sh majburiy"),
@@ -59,6 +53,25 @@ const RelativeSchema = z.object({
     job: z.string().min(2, "Ish joyi/lavozimi majburiy"),
     address: z.string().min(2, "Turar joyi majburiy"),
 });
+
+const WorkHistorySchema = z.object({
+    startYear: z.string().min(1, "Boshlangan yili majburiy"),
+    endYear: z.string().min(1).default("hozirgacha"),
+    organization: z.string().min(2, "Tashkilot nomi majburiy"),
+    position: z.string().min(2, "Lavozim majburiy"),
+    department: z.string().default(""),
+});
+
+const coerceArray = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+const WorkItemsSchema = z
+    .any()
+    .transform((v) => (Array.isArray(v) ? v : []))
+    .pipe(z.array(WorkHistorySchema));
+
+const RelativesSchema = z
+    .any()
+    .transform((v) => (Array.isArray(v) ? v : []))
+    .pipe(z.array(RelativeSchema).min(1, "Kamida 1 ta qarindosh kiriting"));
 
 const FormSchema = z.object({
     orgLine1: z.string().min(3, "Majburiy"),
@@ -74,47 +87,52 @@ const FormSchema = z.object({
     languages: z.string().min(2, "Majburiy"),
     awards: z.string().min(1, "Majburiy"),
     deputy: z.string().min(1, "Majburiy"),
-    relatives: z.array(RelativeSchema).min(1, "Kamida 1 ta qarindosh kiriting"),
+
+    workItems: WorkItemsSchema,
+    relatives: RelativesSchema,
 });
 
-export type MalumotnomaForm = z.infer<typeof FormSchema>;
+export type MalumotnomaForm = z.output<typeof FormSchema>;
 
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
+interface PdfWorkItem {
+    startYear: string;
+    endYear: string;
+    organization: string;
+    position: string;
+    department: string;
+}
+
 function safeImg(src?: string | null) {
-    const s = String(src ?? "").trim();
-    return s ? s : "/assets/avatar.png";
+    return String(src ?? "").trim() || "/assets/avatar.png";
 }
 
 function isOpenEndDate(v?: string | null) {
     const s = String(v ?? "").trim().toLowerCase();
-    return !s || s === "-" || s === "hozirgacha" || s === "present";
+    return !s || s === "-" || s === "hozirgacha" || s === "present" || s === "null";
 }
 
-function parseDDMMYYYY(s?: string | null): number {
-    const m = String(s ?? "").trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-    if (!m) return 0;
-    return Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+function extractYear(iso?: string | null): string {
+    if (!iso) return "";
+    const s = String(iso).trim();
+    const m1 = s.match(/^(\d{4})/);
+    if (m1) return m1[1];
+    const m2 = s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    return m2 ? m2[3] : "";
 }
 
-function getYearFromDDMMYYYY(s?: string | null) {
-    const m = String(s ?? "").trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-    return m ? m[3] : "";
+function rawWorkToPdf(workList: WorkItem[]): PdfWorkItem[] {
+    return (workList || []).map((w) => ({
+        startYear: extractYear(w.startDate) || "—",
+        endYear: isOpenEndDate(w.endDate) ? "hozirgacha" : extractYear(w.endDate) || "—",
+        organization: String(w.organization || "").trim(),
+        position: String(w.position || "").trim(),
+        department: String(w.department ?? "").trim(),
+    }));
 }
 
 function pickMainWork(workList: WorkItem[]): WorkItem | null {
     if (!workList?.length) return null;
-    return (
-        workList.find((w) => isOpenEndDate(w?.endDate)) ??
-        [...workList].sort((a, b) => parseDDMMYYYY(b?.startDate) - parseDDMMYYYY(a?.startDate))[0]
-    );
-}
-
-function workRangeLabel(w: WorkItem) {
-    const fromY = getYearFromDDMMYYYY(w.startDate);
-    const toY = isOpenEndDate(w.endDate) ? "hozirgacha" : getYearFromDDMMYYYY(w.endDate);
-    return `${fromY || "—"} – ${toY || "—"}`;
+    return workList.find((w) => isOpenEndDate(w?.endDate)) ?? workList[workList.length - 1];
 }
 
 function mergeDefaults(d: MalumotnomaForm, saved?: Partial<MalumotnomaForm> | null): MalumotnomaForm {
@@ -122,6 +140,7 @@ function mergeDefaults(d: MalumotnomaForm, saved?: Partial<MalumotnomaForm> | nu
     return {
         ...d,
         ...saved,
+        workItems: Array.isArray(saved.workItems) ? saved.workItems : d.workItems,
         relatives: Array.isArray(saved.relatives) && saved.relatives.length ? saved.relatives : d.relatives,
     };
 }
@@ -131,9 +150,15 @@ function extractErrMsg(e: unknown): string {
     return err?.response?.data?.error || err?.response?.data?.message || err?.message || "Serverda xatolik";
 }
 
-// ─────────────────────────────────────────────
-// Skeleton
-// ─────────────────────────────────────────────
+function sanitizeFileName(name: string) {
+    const s = String(name || "document")
+        .trim()
+        .replace(/[\\/:*?"<>|]+/g, " ")
+        .replace(/\s+/g, " ")
+        .slice(0, 80);
+    return s || "document";
+}
+
 function MalumotnomaSkeleton() {
     return (
         <div className="p-4">
@@ -155,9 +180,6 @@ function MalumotnomaSkeleton() {
     );
 }
 
-// ─────────────────────────────────────────────
-// PDF overlay (shown while exporting)
-// ─────────────────────────────────────────────
 function PdfOverlay() {
     return (
         <div
@@ -185,153 +207,72 @@ function PdfOverlay() {
                     minWidth: 280,
                 }}
             >
-                <Loader2
-                    className="animate-spin text-primary"
-                    style={{ width: 48, height: 48 }}
-                />
+                <Loader2 className="animate-spin text-primary" style={{ width: 48, height: 48 }} />
                 <div style={{ fontSize: 16, fontWeight: 700 }}>PDF ga export qilinmoqda…</div>
-                <div style={{ fontSize: 13, color: "#777", textAlign: "center" }}>
-                    Iltimos kuting, hujjat tayyorlanmoqda
-                </div>
+                <div style={{ fontSize: 13, color: "#777", textAlign: "center" }}>Iltimos kuting, hujjat tayyorlanmoqda</div>
             </div>
         </div>
     );
 }
 
-// ─────────────────────────────────────────────
-// PDF-specific styles (injected via dangerouslySetInnerHTML)
-// Tailwind does NOT touch these → PDF renders perfectly
-// ─────────────────────────────────────────────
 const PDF_STYLES = `
   .pdfdoc * { box-sizing: border-box; margin: 0; padding: 0; }
   .pdfdoc {
     font-family: "Times New Roman", Times, serif;
-    font-size: 11.5pt;
-    color: #000;
-    background: #fff;
-    line-height: 1.55;
+    font-size: 11.5pt; color: #000; background: #fff; line-height: 1.55;
   }
   .pdfdoc .pdf-title {
-    font-size: 17pt;
-    font-weight: 700;
-    letter-spacing: 0.13em;
-    text-align: center;
-    text-transform: uppercase;
+    font-size: 17pt; font-weight: 700; letter-spacing: 0.13em;
+    text-align: center; text-transform: uppercase;
   }
   .pdfdoc .pdf-name {
-    font-size: 13pt;
-    font-weight: 700;
-    text-align: center;
-    text-transform: uppercase;
-    margin-top: 6px;
+    font-size: 13pt; font-weight: 700; text-align: center;
+    text-transform: uppercase; margin-top: 6px;
   }
-  .pdfdoc .pdf-org {
-    font-size: 11pt;
-    text-align: center;
-    margin-top: 9px;
-    line-height: 1.65;
-  }
-  .pdfdoc .pdf-hr {
-    border: none;
-    border-top: 1.5px solid #000;
-    margin: 14px 0;
-  }
+  .pdfdoc .pdf-org { font-size: 11pt; text-align: center; margin-top: 9px; line-height: 1.65; }
+  .pdfdoc .pdf-hr  { border: none; border-top: 1.5px solid #000; margin: 14px 0; }
   .pdfdoc .pdf-info-wrap {
-    display: grid;
-    grid-template-columns: 1fr 116px;
-    gap: 18px;
-    align-items: start;
-    margin-top: 14px;
+    display: grid; grid-template-columns: 1fr 116px;
+    gap: 18px; align-items: start; margin-top: 14px;
   }
   .pdfdoc .pdf-info-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5px 22px;
-    font-size: 11pt;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 5px 22px; font-size: 11pt;
   }
-  .pdfdoc .pdf-info-full {
-    grid-column: span 2;
-  }
+  .pdfdoc .pdf-info-full { grid-column: span 2; }
   .pdfdoc .pdf-b { font-weight: 700; }
-  .pdfdoc .pdf-photo {
-    width: 110px;
-    height: 140px;
-    border: 1.5px solid #000;
-    overflow: hidden;
-  }
-  .pdfdoc .pdf-photo img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
+  .pdfdoc .pdf-photo { width: 110px; height: 140px; border: 1.5px solid #000; overflow: hidden; }
+  .pdfdoc .pdf-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .pdfdoc .pdf-sec {
-    font-size: 11pt;
-    font-weight: 700;
-    text-align: center;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin: 20px 0 9px;
+    font-size: 11pt; font-weight: 700; text-align: center;
+    text-transform: uppercase; letter-spacing: 0.04em; margin: 20px 0 9px;
   }
   .pdfdoc .pdf-work-row {
-    display: grid;
-    grid-template-columns: 148px 1fr;
-    gap: 8px;
-    margin-bottom: 5px;
-    font-size: 10.5pt;
+    display: grid; grid-template-columns: 148px 1fr;
+    gap: 8px; margin-bottom: 5px; font-size: 10.5pt;
   }
   .pdfdoc .pdf-work-year { color: #444; }
-  .pdfdoc table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 10pt;
-  }
-  .pdfdoc table th,
-  .pdfdoc table td {
-    border: 1.5px solid #000 !important;
-    padding: 5px 7px;
-    vertical-align: top;
-    line-height: 1.4;
+  .pdfdoc table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  .pdfdoc table th, .pdfdoc table td {
+    border: 1.5px solid #000 !important; padding: 5px 7px;
+    vertical-align: top; line-height: 1.4;
   }
   .pdfdoc table thead th {
-    background: #e2e2e2;
-    font-weight: 700;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .pdfdoc .pdf-sig {
-    margin-top: 30px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    font-size: 10.5pt;
-  }
-  .pdfdoc .pdf-sig-line {
-    border-top: 1px solid #000;
-    padding-top: 5px;
-    margin-top: 26px;
-    display: flex;
-    justify-content: space-between;
+    background: #e2e2e2; font-weight: 700;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
 `;
 
-// ─────────────────────────────────────────────
-// PDF document template component
-// ─────────────────────────────────────────────
 interface PdfDocProps {
     v: MalumotnomaForm;
     fullName: string;
-    workList: WorkItem[];
     avatarUrl: string;
 }
 
-function PdfDocument({ v, fullName, workList, avatarUrl }: PdfDocProps) {
-    const year = new Date().getFullYear();
+function PdfDocument({ v, fullName, avatarUrl }: PdfDocProps) {
     return (
         <div className="pdfdoc">
             <style dangerouslySetInnerHTML={{ __html: PDF_STYLES }} />
-
-            <div className="pdf-title">MA'LUMOTNOMA</div>
+            <div className="pdf-title">MA&apos;LUMOTNOMA</div>
             <div className="pdf-name">{fullName}</div>
             <div className="pdf-org">
                 {v.orgLine1}
@@ -343,51 +284,69 @@ function PdfDocument({ v, fullName, workList, avatarUrl }: PdfDocProps) {
 
             <div className="pdf-info-wrap">
                 <div className="pdf-info-grid">
-                    <div><span className="pdf-b">Tug'ilgan yili: </span>{v.birthYear || "—"}</div>
-                    <div><span className="pdf-b">Tug'ilgan joyi: </span>{v.birthPlace || "—"}</div>
-                    <div><span className="pdf-b">Millati: </span>{v.nationality || "—"}</div>
-                    <div><span className="pdf-b">Partiyaviyligi: </span>{v.party || "—"}</div>
-                    <div className="pdf-info-full">
-                        <span className="pdf-b">Ma'lumoti: </span>{v.education || "—"}
+                    <div>
+                        <span className="pdf-b">Tug&apos;ilgan yili: </span>
+                        {v.birthYear || "—"}
+                    </div>
+                    <div>
+                        <span className="pdf-b">Tug&apos;ilgan joyi: </span>
+                        {v.birthPlace || "—"}
+                    </div>
+                    <div>
+                        <span className="pdf-b">Millati: </span>
+                        {v.nationality || "—"}
+                    </div>
+                    <div>
+                        <span className="pdf-b">Partiyaviyligi: </span>
+                        {v.party || "—"}
                     </div>
                     <div className="pdf-info-full">
-                        <span className="pdf-b">Mutaxassisligi: </span>{v.specialty || "—"}
-                    </div>
-                    <div><span className="pdf-b">Ilmiy darajasi: </span>{v.degree || "—"}</div>
-                    <div><span className="pdf-b">Ilmiy unvoni: </span>{v.title || "—"}</div>
-                    <div className="pdf-info-full">
-                        <span className="pdf-b">Qaysi chet tillarini biladi: </span>{v.languages || "—"}
+                        <span className="pdf-b">Ma&apos;lumoti: </span>
+                        {v.education || "—"}
                     </div>
                     <div className="pdf-info-full">
-                        <span className="pdf-b">Davlat mukofotlari bilan taqdirlanganmi (qanaqa): </span>
+                        <span className="pdf-b">Mutaxassisligi: </span>
+                        {v.specialty || "—"}
+                    </div>
+                    <div>
+                        <span className="pdf-b">Ilmiy darajasi: </span>
+                        {v.degree || "—"}
+                    </div>
+                    <div>
+                        <span className="pdf-b">Ilmiy unvoni: </span>
+                        {v.title || "—"}
+                    </div>
+                    <div className="pdf-info-full">
+                        <span className="pdf-b">Qaysi chet tillarini biladi: </span>
+                        {v.languages || "—"}
+                    </div>
+                    <div className="pdf-info-full">
+                        <span className="pdf-b">Davlat mukofotlari bilan taqdirlanganmi: </span>
                         {v.awards || "—"}
                     </div>
                     <div className="pdf-info-full">
-                        <span className="pdf-b">
-                            Xalq deputatlari respublika/viloyat/shahar/tuman Kengashi deputatimi yoki boshqa saylanadigan organ:{" "}
-                        </span>
+                        <span className="pdf-b">Xalq deputatlari respublika/viloyat/shahar/tuman Kengashi deputatimi: </span>
                         {v.deputy || "—"}
                     </div>
                 </div>
 
                 <div className="pdf-photo">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={safeImg(avatarUrl)} alt="photo" crossOrigin="anonymous" />
                 </div>
             </div>
 
             <div className="pdf-sec">MEHNAT FAOLIYATI</div>
             <div>
-                {workList.length ? (
-                    workList.map((w) => (
-                        <div key={String(w.id)} className="pdf-work-row">
-                            <div className="pdf-work-year">{workRangeLabel(w)}</div>
+                {v.workItems?.length ? (
+                    v.workItems.map((w, i) => (
+                        <div key={i} className="pdf-work-row">
+                            <div className="pdf-work-year">
+                                {w.startYear || "—"} – {w.endYear || "hozirgacha"}
+                            </div>
                             <div>
-                                <strong>{w.organization}</strong>
-                                {w.position && <> — {w.position}</>}
-                                {w.department && w.department !== "-" && (
-                                    <span style={{ color: "#555" }}> ({w.department})</span>
-                                )}
+                                <strong>{w.organization || "—"}</strong>
+                                {w.position ? <> — {w.position}</> : null}
+                                {w.department && w.department !== "-" ? <span style={{ color: "#555" }}> ({w.department})</span> : null}
                             </div>
                         </div>
                     ))
@@ -396,13 +355,13 @@ function PdfDocument({ v, fullName, workList, avatarUrl }: PdfDocProps) {
                 )}
             </div>
 
-            <div className="pdf-sec">{fullName} yaqin qarindoshlari haqida MA'LUMOT</div>
+            <div className="pdf-sec">{fullName} yaqin qarindoshlari haqida MA&apos;LUMOT</div>
             <table>
                 <thead>
                     <tr>
                         <th style={{ width: "95px" }}>Qarindoshligi</th>
                         <th>Familiyasi, ismi va otasining ismi</th>
-                        <th style={{ width: "152px" }}>Tug'ilgan yili va joyi</th>
+                        <th style={{ width: "152px" }}>Tug&apos;ilgan yili va joyi</th>
                         <th>Ish joyi va lavozimi</th>
                         <th style={{ width: "128px" }}>Turar joyi</th>
                     </tr>
@@ -423,10 +382,15 @@ function PdfDocument({ v, fullName, workList, avatarUrl }: PdfDocProps) {
     );
 }
 
-// ─────────────────────────────────────────────
-// Field helper
-// ─────────────────────────────────────────────
-function Field({ label, children, error }: { label: string; children: React.ReactNode; error?: string }) {
+function Field({
+    label,
+    children,
+    error,
+}: {
+    label: string;
+    children: React.ReactNode;
+    error?: string;
+}) {
     return (
         <div>
             <div className="mb-1 text-xs text-muted-foreground">{label}</div>
@@ -436,45 +400,91 @@ function Field({ label, children, error }: { label: string; children: React.Reac
     );
 }
 
+function CollapsibleSection({
+    title,
+    badge,
+    children,
+}: {
+    title: string;
+    badge?: number;
+    children: React.ReactNode;
+}) {
+    const [open, setOpen] = React.useState(true);
+    return (
+        <div>
+            <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                className="flex w-full items-center justify-between text-sm font-medium"
+            >
+                <span className="flex items-center gap-2">
+                    {title}
+                    {badge !== undefined && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                            {badge}
+                        </span>
+                    )}
+                </span>
+                {open ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+            </button>
+            {open && <div className="mt-3">{children}</div>}
+        </div>
+    );
+}
+
 export function MalumotnomaBuilder({ data, onBack }: Props) {
     const pinfl = data?.passport?.pinfl || "";
     const fullName = data?.passport?.fullName || "—";
     const birthYearGuess = data?.passport?.birthDate?.split(".")?.[2] || "";
     const edu0 = data?.education?.[0];
-    const workList = Array.isArray(data?.work) ? data.work : [];
-    const mainWork = pickMainWork(workList);
+    const rawWorkList = Array.isArray(data?.work) ? data.work : [];
+    const mainWork = pickMainWork(rawWorkList);
 
-    const defaultOrg1 = mainWork?.organization?.trim() || "";
-    const defaultOrg2 = [
-        mainWork?.position || "",
-        mainWork?.department && mainWork.department !== "-" ? `(${mainWork.department})` : "",
-    ].filter(Boolean).join(" ").trim();
+    const initialWorkItems = React.useMemo(() => rawWorkToPdf(rawWorkList), [rawWorkList]);
 
-    const defaultValues: MalumotnomaForm = React.useMemo(() => ({
-        orgLine1: defaultOrg1,
-        orgLine2: defaultOrg2,
-        birthYear: birthYearGuess,
-        birthPlace: "",
-        nationality: "o'zbek",
-        party: "yo'q",
-        education: edu0?.institution || "—",
-        specialty: edu0?.specialty || "—",
-        degree: "yo'q",
-        title: "yo'q",
-        languages: "",
-        awards: "yo'q",
-        deputy: "yo'q",
-        relatives: [{ relation: "Otasi", fio: "", birth: "", job: "", address: "" }],
-    }), [defaultOrg1, defaultOrg2, birthYearGuess, edu0?.institution, edu0?.specialty]);
+    const defaultOrg1 = String(mainWork?.organization ?? "").trim();
+    const defaultOrg2 = [mainWork?.position || "", mainWork?.department && mainWork.department !== "-" ? `(${mainWork.department})` : ""]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+    const defaultValues = React.useMemo<MalumotnomaForm>(
+        () => ({
+            orgLine1: defaultOrg1 || "",
+            orgLine2: defaultOrg2 || "",
+            birthYear: birthYearGuess || "",
+            birthPlace: "",
+            nationality: "o'zbek",
+            party: "yo'q",
+            education: edu0?.institution || "—",
+            specialty: edu0?.specialty || "—",
+            degree: "yo'q",
+            title: "yo'q",
+            languages: "",
+            awards: "yo'q",
+            deputy: "yo'q",
+            workItems: initialWorkItems,
+            relatives: [{ relation: "Otasi", fio: "", birth: "", job: "", address: "" }],
+        }),
+        [defaultOrg1, defaultOrg2, birthYearGuess, edu0?.institution, edu0?.specialty, initialWorkItems]
+    );
 
     const form = useForm<MalumotnomaForm>({
         resolver: zodResolver(FormSchema),
         defaultValues,
         mode: "onChange",
     });
+
     const { control, register, watch, formState, reset, handleSubmit } = form;
     const { errors, isValid, isSubmitting } = formState;
+
     const relativesFA = useFieldArray({ control, name: "relatives" });
+    const workItemsFA = useFieldArray({ control, name: "workItems" });
+
     const v = watch();
 
     const [loadingSaved, setLoadingSaved] = React.useState(true);
@@ -482,35 +492,49 @@ export function MalumotnomaBuilder({ data, onBack }: Props) {
     const [saveOkAt, setSaveOkAt] = React.useState<string | null>(null);
     const [isPdfExporting, setIsPdfExporting] = React.useState(false);
 
-    // Separate hidden node for clean PDF capture
     const pdfCaptureRef = React.useRef<HTMLDivElement>(null);
 
     React.useEffect(() => {
-        if (!pinfl) { setPageError("PINFL topilmadi."); setLoadingSaved(false); return; }
+        if (!pinfl) {
+            setPageError("PINFL topilmadi.");
+            setLoadingSaved(false);
+            return;
+        }
+
+        let alive = true;
+
         (async () => {
             try {
                 setLoadingSaved(true);
                 const res = await axiosClient.get("/user/malumotnoma/get", { params: { pinfl } });
-                reset(
-                    res.data?.success && res.data?.data?.payload
-                        ? mergeDefaults(defaultValues, res.data.data.payload)
-                        : defaultValues
-                );
-            } catch (e) { setPageError(extractErrMsg(e)); }
-            finally { setLoadingSaved(false); }
+                const payload = res.data?.success ? (res.data?.data?.payload as Partial<MalumotnomaForm> | undefined) : undefined;
+                if (!alive) return;
+                reset(payload ? mergeDefaults(defaultValues, payload) : defaultValues);
+            } catch (e) {
+                if (!alive) return;
+                setPageError(extractErrMsg(e));
+            } finally {
+                if (!alive) return;
+                setLoadingSaved(false);
+            }
         })();
+
+        return () => {
+            alive = false;
+        };
     }, [pinfl, defaultValues, reset]);
 
     const exportPDF = async () => {
         if (!pdfCaptureRef.current) return;
         setIsPdfExporting(true);
-        await new Promise((r) => setTimeout(r, 100));
-
+        await new Promise((r) => setTimeout(r, 50));
         try {
+            const filename = `obyektivka-${sanitizeFileName(fullName)}.pdf`;
+
             await html2pdf()
                 .set({
                     margin: [14, 14, 14, 14] as [number, number, number, number],
-                    filename: `obyektivka-${fullName}.pdf`,
+                    filename,
                     image: { type: "jpeg" as const, quality: 1 },
                     html2canvas: {
                         scale: 3,
@@ -521,20 +545,17 @@ export function MalumotnomaBuilder({ data, onBack }: Props) {
                         backgroundColor: "#ffffff",
                         logging: false,
                         onclone: (_clonedDoc: Document, element: HTMLElement) => {
-                            // ── 1. Barcha stylesheet'lardan lab()/oklch() ni o'chiramiz ──────────
                             try {
-                                const sheets = Array.from(_clonedDoc.styleSheets);
-                                sheets.forEach((sheet) => {
+                                Array.from(_clonedDoc.styleSheets).forEach((sheet) => {
                                     try {
-                                        const rules = Array.from(sheet.cssRules || []);
-                                        rules.forEach((rule) => {
+                                        Array.from((sheet as CSSStyleSheet).cssRules || []).forEach((rule) => {
                                             if (
                                                 rule instanceof CSSStyleRule &&
                                                 (rule.cssText.includes("lab(") || rule.cssText.includes("oklch("))
                                             ) {
                                                 try {
-                                                    sheet.deleteRule(
-                                                        Array.from(sheet.cssRules).indexOf(rule)
+                                                    (sheet as CSSStyleSheet).deleteRule(
+                                                        Array.from((sheet as CSSStyleSheet).cssRules).indexOf(rule)
                                                     );
                                                 } catch { }
                                             }
@@ -543,54 +564,29 @@ export function MalumotnomaBuilder({ data, onBack }: Props) {
                                 });
                             } catch { }
 
-                            // ── 2. Capture element o'zida barcha ranglarni hex bilan override ───
                             const style = _clonedDoc.createElement("style");
                             style.textContent = `
-              *, *::before, *::after {
-                --background: #ffffff !important;
-                --foreground: #000000 !important;
-                --card: #ffffff !important;
-                --card-foreground: #000000 !important;
-                --popover: #ffffff !important;
-                --popover-foreground: #000000 !important;
-                --primary: #000000 !important;
-                --primary-foreground: #ffffff !important;
-                --secondary: #f0f0f0 !important;
-                --secondary-foreground: #000000 !important;
-                --muted: #f5f5f5 !important;
-                --muted-foreground: #555555 !important;
-                --accent: #f0f0f0 !important;
-                --accent-foreground: #000000 !important;
-                --destructive: #cc0000 !important;
-                --destructive-foreground: #ffffff !important;
-                --border: #cccccc !important;
-                --input: #cccccc !important;
-                --ring: #000000 !important;
-              }
-            `;
+                *, *::before, *::after {
+                  --background:#fff!important; --foreground:#000!important;
+                  --card:#fff!important; --card-foreground:#000!important;
+                  --border:#ccc!important; --muted:#f5f5f5!important;
+                  --muted-foreground:#555!important;
+                }
+              `;
                             _clonedDoc.head.appendChild(style);
 
-                            // ── 3. Har bir elementni ko'rib, lab()/oklch() bo'lsa hex ga ──────
                             const walk = (el: Element) => {
                                 if (!(el instanceof HTMLElement)) return;
-                                const s = el.style;
-                                const fix = (prop: string) => {
-                                    const val = s.getPropertyValue(prop);
-                                    if (val.includes("lab(") || val.includes("oklch(")) {
-                                        s.setProperty(prop, "#000000", "important");
-                                    }
-                                };
-                                ["color", "background-color", "border-color", "outline-color"].forEach(fix);
+                                ["color", "background-color", "border-color"].forEach((prop) => {
+                                    const val = el.style.getPropertyValue(prop);
+                                    if (val.includes("lab(") || val.includes("oklch(")) el.style.setProperty(prop, "#000000", "important");
+                                });
                                 Array.from(el.children).forEach(walk);
                             };
                             walk(element);
                         },
                     },
-                    jsPDF: {
-                        unit: "mm" as const,
-                        format: "a4",
-                        orientation: "portrait" as const,
-                    },
+                    jsPDF: { unit: "mm" as const, format: "a4", orientation: "portrait" as const },
                 })
                 .from(pdfCaptureRef.current)
                 .save();
@@ -601,14 +597,18 @@ export function MalumotnomaBuilder({ data, onBack }: Props) {
 
     const onSave = async (values: MalumotnomaForm) => {
         try {
-            setPageError(null); setSaveOkAt(null);
+            setPageError(null);
+            setSaveOkAt(null);
+
             const res = await axiosClient.post("/user/malumotnoma/upsert", {
                 pinfl: data.passport.pinfl,
                 fullName: data.passport.fullName,
                 passportSeriesNumber: data.passport.passportSeriesNumber,
                 payload: values,
             });
+
             if (!res.data?.success) throw new Error(res.data?.error || "Saqlashda xatolik");
+
             setSaveOkAt(new Date().toLocaleString());
             showToast("Ma'lumotnoma muvaffaqiyatli saqlandi", ToastType.Success);
         } catch (e) {
@@ -630,7 +630,11 @@ export function MalumotnomaBuilder({ data, onBack }: Props) {
                     </CardHeader>
                     <CardContent>
                         <div className="text-sm text-muted-foreground">{pageError}</div>
-                        <div className="mt-4"><Button variant="outline" onClick={onBack}>Ortga</Button></div>
+                        <div className="mt-4">
+                            <Button variant="outline" onClick={onBack}>
+                                Ortga
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -651,42 +655,28 @@ export function MalumotnomaBuilder({ data, onBack }: Props) {
                     background: "#fff",
                     zIndex: -1,
                     pointerEvents: "none",
-                    colorScheme: "normal",
-                    filter: "none",
                 }}
             >
-                <div ref={pdfCaptureRef} style={{ padding: "0px" }}>
-                    <PdfDocument v={v} fullName={fullName} workList={workList} avatarUrl={data.avatarUrl} />
+                <div ref={pdfCaptureRef}>
+                    <PdfDocument v={v} fullName={fullName} avatarUrl={data.avatarUrl} />
                 </div>
             </div>
 
             <div className="p-4">
-                {/* Toolbar */}
                 <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print:hidden">
                     <div>
-                        <div className="text-lg font-semibold">Ma'lumotnoma (Obyektivka)</div>
+                        <div className="text-lg font-semibold">Ma&apos;lumotnoma (Obyektivka)</div>
                         {saveOkAt && <div className="mt-1 text-xs text-emerald-600">Saqlandi: {saveOkAt}</div>}
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <Button variant="outline" onClick={onBack} disabled={isSubmitting || isPdfExporting}>
                             Ortga
                         </Button>
-                        <Button
-                            variant="outline"
-                            onClick={exportPDF}
-                            disabled={isPdfExporting}
-                            className="gap-2"
-                        >
-                            {isPdfExporting
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                : <FileDown className="h-4 w-4" />
-                            }
+                        <Button variant="outline" onClick={exportPDF} disabled={isPdfExporting} className="gap-2">
+                            {isPdfExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
                             PDF yuklab olish
                         </Button>
-                        <Button
-                            onClick={handleSubmit(onSave)}
-                            disabled={!isValid || isSubmitting || isPdfExporting}
-                        >
+                        <Button onClick={handleSubmit(onSave)} disabled={!isValid || isSubmitting || isPdfExporting}>
                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Saqlash
                         </Button>
@@ -694,33 +684,30 @@ export function MalumotnomaBuilder({ data, onBack }: Props) {
                 </div>
 
                 {pageError && (
-                    <div className="mb-4 rounded-2xl border bg-red-50 p-3 text-sm text-red-700 print:hidden">
-                        {pageError}
-                    </div>
+                    <div className="mb-4 rounded-2xl border bg-red-50 p-3 text-sm text-red-700 print:hidden">{pageError}</div>
                 )}
 
                 <div className="grid gap-4 lg:grid-cols-2">
-                    {/* Left: Form */}
                     <Card className="rounded-2xl print:hidden">
                         <CardHeader className="pb-3">
-                            <div className="text-sm font-semibold">Ma'lumotlarni to'ldirish</div>
+                            <div className="text-sm font-semibold">Ma&apos;lumotlarni to&apos;ldirish</div>
                             <div className="mt-1 text-xs text-muted-foreground">
-                                Majburiy maydonlar to'ldirilmasa "Saqlash" o'chiriladi.
+                                Majburiy maydonlar to&apos;ldirilmasa &quot;Saqlash&quot; o&apos;chiriladi.
                             </div>
                         </CardHeader>
+
                         <CardContent className="space-y-5">
-                            <div className="grid gap-3">
+                            <div className="grid gap-2">
                                 <div className="text-sm font-medium">Ish joyi (header)</div>
-                                <div className="grid gap-2">
-                                    <Input {...register("orgLine1")} placeholder="Tashkilot nomi" />
-                                    {errors.orgLine1 && <p className="text-xs text-red-600">{errors.orgLine1.message}</p>}
-                                    <Input {...register("orgLine2")} placeholder="Lavozim (bo'lim)" />
-                                    {errors.orgLine2 && <p className="text-xs text-red-600">{errors.orgLine2.message}</p>}
-                                </div>
+                                <Input {...register("orgLine1")} placeholder="Tashkilot nomi" />
+                                {errors.orgLine1 && <p className="text-xs text-red-600">{errors.orgLine1.message}</p>}
+                                <Input {...register("orgLine2")} placeholder="Lavozim (bo'lim)" />
+                                {errors.orgLine2 && <p className="text-xs text-red-600">{errors.orgLine2.message}</p>}
                             </div>
+
                             <Separator />
-                            <div className="grid gap-3">
-                                <div className="text-sm font-medium">Asosiy ma'lumotlar</div>
+
+                            <CollapsibleSection title="Asosiy ma'lumotlar">
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                     <Field label="Tug'ilgan yili" error={errors.birthYear?.message}>
                                         <Input {...register("birthYear")} placeholder="YYYY" />
@@ -766,33 +753,96 @@ export function MalumotnomaBuilder({ data, onBack }: Props) {
                                         </Field>
                                     </div>
                                 </div>
-                            </div>
+                            </CollapsibleSection>
+
                             <Separator />
-                            <div className="grid gap-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="text-sm font-medium">Yaqin qarindoshlari</div>
+
+                            <CollapsibleSection title="Mehnat faoliyati" badge={workItemsFA.fields.length}>
+                                <div className="space-y-3">
+                                    {workItemsFA.fields.map((f, idx) => (
+                                        <div key={f.id} className="rounded-2xl border border-border/60 bg-muted/20 p-3">
+                                            <div className="mb-2 flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-sm font-semibold">
+                                                    <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    Ish joyi #{idx + 1}
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600"
+                                                    onClick={() => workItemsFA.remove(idx)}
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+
+                                            <div className="grid gap-2 sm:grid-cols-2">
+                                                <Field label="Boshlagan yili" error={errors.workItems?.[idx]?.startYear?.message}>
+                                                    <Input {...register(`workItems.${idx}.startYear`)} placeholder="2020" />
+                                                </Field>
+                                                <Field label="Tugagan yili" error={errors.workItems?.[idx]?.endYear?.message}>
+                                                    <Input {...register(`workItems.${idx}.endYear`)} placeholder="hozirgacha" />
+                                                </Field>
+                                                <div className="sm:col-span-2">
+                                                    <Field label="Tashkilot nomi" error={errors.workItems?.[idx]?.organization?.message}>
+                                                        <Input {...register(`workItems.${idx}.organization`)} placeholder="Tashkilot nomi" />
+                                                    </Field>
+                                                </div>
+                                                <div className="sm:col-span-2">
+                                                    <Field label="Lavozim" error={errors.workItems?.[idx]?.position?.message}>
+                                                        <Input {...register(`workItems.${idx}.position`)} placeholder="Lavozim" />
+                                                    </Field>
+                                                </div>
+                                                <div className="sm:col-span-2">
+                                                    <Field label="Bo'lim (ixtiyoriy)">
+                                                        <Input {...register(`workItems.${idx}.department`)} placeholder="Bo'lim yoki sektor" />
+                                                    </Field>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        className="rounded-xl"
-                                        onClick={() => relativesFA.append({ relation: "", fio: "", birth: "", job: "", address: "" })}
+                                        className="w-full rounded-xl gap-2"
+                                        onClick={() =>
+                                            workItemsFA.append({
+                                                startYear: "",
+                                                endYear: "hozirgacha",
+                                                organization: "",
+                                                position: "",
+                                                department: "",
+                                            })
+                                        }
                                     >
-                                        <Plus className="mr-2 h-4 w-4" />Qo'shish
+                                        <Plus className="h-4 w-4" />
+                                        Ish joyi qo&apos;shish
                                     </Button>
                                 </div>
+                            </CollapsibleSection>
+
+                            <Separator />
+
+                            <CollapsibleSection title="Yaqin qarindoshlari" badge={relativesFA.fields.length}>
                                 <div className="space-y-3">
                                     {relativesFA.fields.map((f, idx) => (
                                         <div key={f.id} className="rounded-2xl border p-3">
                                             <div className="mb-2 flex items-center justify-between">
                                                 <div className="text-sm font-semibold">Qarindosh #{idx + 1}</div>
                                                 <Button
-                                                    type="button" variant="ghost" className="rounded-xl"
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600"
                                                     onClick={() => relativesFA.remove(idx)}
                                                     disabled={relativesFA.fields.length <= 1}
                                                 >
-                                                    <Trash2 className="h-4 w-4" />
+                                                    <Trash2 className="h-3.5 w-3.5" />
                                                 </Button>
                                             </div>
+
                                             <div className="grid gap-3 sm:grid-cols-2">
                                                 <Field label="Qarindoshligi" error={errors.relatives?.[idx]?.relation?.message}>
                                                     <Input {...register(`relatives.${idx}.relation`)} placeholder="Otasi / Onasi / ..." />
@@ -818,20 +868,30 @@ export function MalumotnomaBuilder({ data, onBack }: Props) {
                                             </div>
                                         </div>
                                     ))}
+
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="w-full rounded-xl gap-2"
+                                        onClick={() => relativesFA.append({ relation: "", fio: "", birth: "", job: "", address: "" })}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Qarindosh qo&apos;shish
+                                    </Button>
+
+                                    {!isValid && (
+                                        <div className="rounded-xl border bg-amber-50 p-3 text-xs text-amber-900">
+                                            Ba&apos;zi majburiy maydonlar to&apos;ldirilmagan.
+                                        </div>
+                                    )}
                                 </div>
-                                {!isValid && (
-                                    <div className="rounded-xl border bg-amber-50 p-3 text-xs text-amber-900">
-                                        Ba'zi majburiy maydonlar to'ldirilmagan.
-                                    </div>
-                                )}
-                            </div>
+                            </CollapsibleSection>
                         </CardContent>
                     </Card>
 
-                    {/* Right: Live preview */}
                     <div className="print:col-span-2">
-                        <div className="rounded-2xl border bg-white p-8 shadow-sm print:border-0 print:p-0 print:shadow-none">
-                            <PdfDocument v={v} fullName={fullName} workList={workList} avatarUrl={data.avatarUrl} />
+                        <div className="rounded-2xl border bg-white p-8 shadow-sm print:border-0 print:p-0 print:shadow-none overflow-x-auto">
+                            <PdfDocument v={v} fullName={fullName} avatarUrl={data.avatarUrl} />
                         </div>
                     </div>
                 </div>

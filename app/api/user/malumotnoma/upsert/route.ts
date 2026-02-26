@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/config/dbconn";
-
 import { z } from "zod";
 import MalumotnomaModel from "@/models/malumotnoma-models";
 
 const RelativeSchema = z.object({
     relation: z.string().min(2, "Qarindoshligi majburiy"),
     fio: z.string().min(5, "F.I.Sh majburiy"),
-    birth: z.string().min(4, "Tug‘ilgan yili/joyi majburiy"),
+    birth: z.string().min(4, "Tug'ilgan yili/joyi majburiy"),
     job: z.string().min(2, "Ish joyi/lavozimi majburiy"),
     address: z.string().min(2, "Turar joyi majburiy"),
+});
+
+const WorkHistorySchema = z.object({
+    startYear: z.string().min(1, "Boshlangan yili majburiy"),
+    endYear: z.string().default("hozirgacha"),
+    organization: z.string().min(2, "Tashkilot nomi majburiy"),
+    position: z.string().min(2, "Lavozim majburiy"),
+    department: z.string().default(""),
 });
 
 const PayloadSchema = z.object({
@@ -28,6 +35,7 @@ const PayloadSchema = z.object({
     awards: z.string().min(1, "Majburiy"),
     deputy: z.string().min(1, "Majburiy"),
 
+    workItems: z.array(WorkHistorySchema).default([]),
     relatives: z.array(RelativeSchema).min(1, "Kamida 1 ta qarindosh kiriting"),
 });
 
@@ -64,7 +72,7 @@ export async function POST(req: NextRequest) {
                     payload,
                 },
             },
-            { upsert: true, returnDocument: "after" }
+            { upsert: true, returnDocument: "after", new: true }
         ).lean();
 
         return NextResponse.json({ success: true, data: updated }, { status: 200 });

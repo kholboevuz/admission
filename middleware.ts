@@ -9,6 +9,7 @@ const PUBLIC_API_ROUTES = [
     "/api/payment/click/complate",
     "/api/auth/oneid/callback",
     "/api/auth/oneid/start",
+    "/api/files"
 ];
 
 async function verifyToken(token: string) {

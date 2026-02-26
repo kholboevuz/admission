@@ -93,7 +93,6 @@ export async function GET(
         }
 
         const application = await ApplicationsModel.findOne({ _id: applicationId }).lean();
-        console.log("APPLICATION:", application);
         if (!application) {
             return NextResponse.json({ success: false, error: "Ariza topilmadi" }, { status: 404 });
         }
@@ -115,7 +114,6 @@ export async function GET(
                 return decryptEncData(usersData.encData);
             }),
 
-            // Employment from IIP
             safeCall(() =>
                 getWithRefreshIfEmpty({
                     getFn: getEmployment,
@@ -125,7 +123,6 @@ export async function GET(
                 })
             ),
 
-            // Education from IIP
             safeCall(() =>
                 getWithRefreshIfEmpty({
                     getFn: getEducation,
@@ -137,7 +134,7 @@ export async function GET(
 
             // International diploma
             safeCall(() =>
-                InternationalDiplomaModel.findOne({ pinfl }).lean()
+                InternationalDiplomaModel.find({ pinfl }).lean()
             ),
 
             // Malumotnoma

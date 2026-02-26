@@ -8,6 +8,14 @@ export type RelativeItem = {
     address: string;
 };
 
+export type WorkHistoryItem = {
+    startYear: string;
+    endYear: string;
+    organization: string;
+    position: string;
+    department: string;
+};
+
 export type MalumotnomaPayload = {
     orgLine1: string;
     orgLine2: string;
@@ -24,13 +32,14 @@ export type MalumotnomaPayload = {
     awards: string;
     deputy: string;
 
+    workItems: WorkHistoryItem[];
     relatives: RelativeItem[];
 };
 
 export interface IMalumotnoma extends Document {
     pinfl: string;
-    full_name?: string | null; // snapshot (ixtiyoriy)
-    passport_series_number?: string | null; // snapshot (ixtiyoriy)
+    full_name?: string | null;
+    passport_series_number?: string | null;
     payload: MalumotnomaPayload;
     status: boolean;
     updatedAt: Date;
@@ -43,6 +52,17 @@ const RelativeSchema = new Schema<RelativeItem>(
         birth: { type: String, required: true },
         job: { type: String, required: true },
         address: { type: String, required: true },
+    },
+    { _id: false }
+);
+
+const WorkHistorySchema = new Schema<WorkHistoryItem>(
+    {
+        startYear: { type: String, required: true },
+        endYear: { type: String, default: "hozirgacha" },
+        organization: { type: String, required: true },
+        position: { type: String, required: true },
+        department: { type: String, default: "" },
     },
     { _id: false }
 );
@@ -64,6 +84,7 @@ const PayloadSchema = new Schema<MalumotnomaPayload>(
         awards: { type: String, required: true },
         deputy: { type: String, required: true },
 
+        workItems: { type: [WorkHistorySchema], default: [], required: true },
         relatives: { type: [RelativeSchema], default: [], required: true },
     },
     { _id: false }
