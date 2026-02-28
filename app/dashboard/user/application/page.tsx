@@ -219,6 +219,7 @@ export default function Page() {
                 submittedAt={formatUZDateTime((applicationData as any)?.createdAt)}
                 onEdit={onEdit}
                 editLoading={editLoading}
+                application_id={applicationData._id!}
             />
         );
     }
@@ -231,6 +232,7 @@ export default function Page() {
                     submittedAt={formatUZDateTime((applicationData as any)?.createdAt)}
                     onEdit={onEdit}
                     editLoading={editLoading}
+                    application_id={applicationData._id!}
                 />
             );
         }

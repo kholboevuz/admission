@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/config/dbconn";
 import AdmissionModel from "@/models/admission-models";
 import ApplicationsModel from "@/models/application-models";
+import ModeratorApplicationsModel from "@/models/moderator-applications";
 import { jwtVerify } from "jose";
 import StaffModel from "@/models/staff-model";
 
@@ -37,30 +38,49 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-
         const pageRaw = searchParams.get("page");
         const limitRaw = searchParams.get("limit");
 
         const limit = Math.min(Math.max(parseInt(limitRaw || "50", 10) || 50, 1), 200);
         const page = Math.max(parseInt(pageRaw || "1", 10) || 1, 1);
 
-        const filter = {
+        const matchStage: any = {
             admission_id: String(admission._id),
             application_status: "submitted",
         };
 
-        const total = await ApplicationsModel.countDocuments(filter);
+        const pipeline: any[] = [
+            { $match: matchStage },
+            {
+                $lookup: {
+                    from: ModeratorApplicationsModel.collection.name,
+                    let: { appIdStr: { $toString: "$_id" } },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ["$application_id", "$$appIdStr"] } } },
+                        { $limit: 1 },
+                    ],
+                    as: "mods",
+                },
+            },
+            { $match: { "mods.0": { $exists: false } } },
+            { $sort: { createdAt: -1, _id: -1 } },
+            {
+                $facet: {
+                    data: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+                    meta: [{ $count: "total" }],
+                },
+            },
+        ];
 
-        const applications = await ApplicationsModel.find(filter)
-            .sort({ createdAt: -1, _id: -1 })
-            .skip((page - 1) * limit)
-            .limit(limit)
-            .lean();
+        const out = await ApplicationsModel.aggregate(pipeline);
+
+        const data = out?.[0]?.data || [];
+        const total = out?.[0]?.meta?.[0]?.total || 0;
 
         return NextResponse.json(
             {
                 success: true,
-                data: applications,
+                data,
                 pagination: {
                     page,
                     limit,

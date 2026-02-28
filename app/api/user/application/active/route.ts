@@ -28,27 +28,25 @@ export async function GET(req: NextRequest) {
         }
 
         const active = await AdmissionModel.findOne({ status: true }).sort({ _id: -1 }).lean();
-
         if (active) {
             return NextResponse.json({ success: true, data: active }, { status: 200 });
         }
 
-        const last = await AdmissionModel.findOne({}).sort({ _id: -1 }).lean();
-
-        if (!last) {
+        const lastUserApp = await ApplicationsModel.findOne({ pinfl }).sort({ createdAt: -1 }).lean();
+        if (!lastUserApp?.admission_id) {
             return NextResponse.json({ success: true, data: null }, { status: 200 });
         }
 
-        const userHasApplication = await ApplicationsModel.findOne({
-            pinfl,
-            admission_id: String(last._id),
-        }).lean();
-
-        if (userHasApplication) {
-            return NextResponse.json({ success: true, data: last }, { status: 200 });
+        const targetAdmission = await AdmissionModel.findById(String(lastUserApp.admission_id)).lean();
+        if (!targetAdmission) {
+            return NextResponse.json({ success: true, data: null }, { status: 200 });
         }
 
-        return NextResponse.json({ success: true, data: null }, { status: 200 });
+        if (!targetAdmission.status) {
+            return NextResponse.json({ success: true, data: null }, { status: 200 });
+        }
+
+        return NextResponse.json({ success: true, data: targetAdmission }, { status: 200 });
     } catch (e) {
         console.error(e);
         return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });

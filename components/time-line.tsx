@@ -26,6 +26,7 @@ import {
     FileText,
     Loader2,
 } from "lucide-react";
+import { ApplicationInfo } from "./application-info";
 
 export type ApplicationStatus =
     | "draft"
@@ -42,6 +43,7 @@ type Props = {
     reviewedAt?: string;
     decidedAt?: string;
     editLoading?: boolean;
+    application_id: string;
     onEdit?: () => void;
 };
 
@@ -77,10 +79,11 @@ function statusMeta(status: ApplicationStatus) {
                 ? 2
                 : 0;
 
-    // Yakuniy title/desc
     const final =
         status === "accepted"
-            ? { title: "Yakuniy tasdiq", desc: "Ariza yakunlandi va qabul qilindi. Endi tahrirlash mumkin emas." }
+            ? {
+                title: "Yakuniy tasdiq", desc: "Arizangiz muvaffaqiyatli yakunlandi va qabul qilindi. Qo‘shimcha ma’lumotlar va keyingi bosqichlar haqida elektron pochta manzilingiz hamda shaxsiy kabinetingiz orqali xabar beriladi."
+            }
             : status === "rejected"
                 ? { title: "Rad etildi", desc: "Ariza rad etildi. Tahrirlash yopilgan." }
                 : status === "returned"
@@ -97,11 +100,11 @@ export function TimelineApplication({
     submittedAt,
     reviewedAt,
     decidedAt,
+    application_id,
     editLoading,
     onEdit,
 }: Props) {
     const { canEdit, badge, activeIndex, final } = statusMeta(status);
-
     return (
         <div >
 
@@ -120,7 +123,6 @@ export function TimelineApplication({
                     </div>
                 </div>
 
-                {/* Meta + Action */}
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-sm text-muted-foreground">
                         <span className="mr-2">Yuborilgan:</span>
@@ -157,7 +159,19 @@ export function TimelineApplication({
 
                 {status === "returned" && (
                     <div className="mt-3 rounded-xl border bg-amber-50 p-3 text-sm text-amber-900">
-                        Ariza tuzatish uchun qaytarildi. Tahrirlab qayta yuboring.
+                        <div className="flex justify-between items-center">
+                            <p>Ariza tuzatish uchun qaytarildi. Tahrirlab qayta yuboring.</p>
+                            <ApplicationInfo button="Qaytarish sababi" title="Qaytarish sababi" application_id={application_id} />
+                        </div>
+                    </div>
+                )}
+
+                {status === "rejected" && (
+                    <div className="mt-3 rounded-xl border bg-red-50 p-3 text-sm text-red-900">
+                        <div className="flex justify-between items-center">
+                            <p> Ariza moderatsiya tomonidan rad etildi. </p>
+                            <ApplicationInfo button="Rad etish sababi" title="Rad etish sababi" application_id={application_id} />
+                        </div>
                     </div>
                 )}
 
@@ -192,7 +206,7 @@ export function TimelineApplication({
                         <TimelineConnector />
                         <TimelineContent>
                             <TimelineHeader>
-                                <TimelineTime dateTime={reviewedAt || ""}>{status === "reviewed" ? fmt(reviewedAt) : "Kutilmoqda"}</TimelineTime>
+                                <TimelineTime dateTime={reviewedAt || ""}>{status === "reviewed" ? fmt(reviewedAt) : "Holat xabari"}</TimelineTime>
                                 <TimelineTitle>Moderator ko‘rib chiqmoqda</TimelineTitle>
                             </TimelineHeader>
                             <TimelineDescription>
@@ -206,7 +220,7 @@ export function TimelineApplication({
                         <TimelineDot />
                         <TimelineContent>
                             <TimelineHeader>
-                                <TimelineTime dateTime={reviewedAt || ""}>{status === "reviewed" ? fmt(reviewedAt) : "Kutilmoqda"}</TimelineTime>
+                                <TimelineTime dateTime={reviewedAt || ""}>{status === "reviewed" ? fmt(reviewedAt) : "Holat xabari"}</TimelineTime>
                                 <TimelineTitle>{final.title}</TimelineTitle>
                             </TimelineHeader>
                             <TimelineDescription>{final.desc}</TimelineDescription>

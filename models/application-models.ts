@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
-export type ApplicationStatus = "draft" | "reviewed" | "submitted" | "paid" | "rejected" | "accepted" | "returned";
+export type ApplicationStatus = "draft" | "reviewed" | "submitted" | "paid" | "rejected" | "accepted" | "returned" | "return_submitted";
 
 export interface IApplicationComment {
     comment: string;

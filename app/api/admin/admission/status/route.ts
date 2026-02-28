@@ -30,13 +30,6 @@ export async function PUT(req: NextRequest) {
                     { status: 400 }
                 );
             }
-
-            if (endDate < now) {
-                return NextResponse.json(
-                    { error: "Tugash sanasi o‘tib ketgan admissionni aktiv qilib bo‘lmaydi" },
-                    { status: 403 }
-                );
-            }
         }
 
         const updated = await AdmissionModel.findByIdAndUpdate(

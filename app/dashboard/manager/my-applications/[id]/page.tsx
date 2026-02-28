@@ -14,6 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
+import RejectApplication from "@/components/reject-application";
+import ReturnApplication from "@/components/return-application";
+import AcceptApplication from "@/components/accept-application";
 
 type ApplicationStatus =
     | "draft" | "reviewed" | "submitted" | "paid"
@@ -224,7 +227,7 @@ function Skeleton({ className }: { className?: string }) {
 
 function DetailSkeleton() {
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-6">
             <div className="flex items-center gap-3">
                 <Skeleton className="h-9 w-9" />
                 <Skeleton className="h-8 w-64" />
@@ -406,8 +409,7 @@ export default function ApplicationDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [isPdfExporting, setIsPdfExporting] = useState(false);
     const pdfCaptureRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
+    const loadApplication = async () => {
         if (!params.id) return;
         (async () => {
             try {
@@ -421,8 +423,10 @@ export default function ApplicationDetailPage() {
                 setLoading(false);
             }
         })();
+    };
+    useEffect(() => {
+        loadApplication();
     }, [params.id]);
-
     const exportPDF = async () => {
         if (!pdfCaptureRef.current) return;
         setIsPdfExporting(true);
@@ -521,31 +525,25 @@ export default function ApplicationDetailPage() {
                 </div>
             )}
 
-            <div className="space-y-6 p-6">
+            <div className="space-y-6">
 
-                <div className="flex flex-wrap items-center gap-3">
-                    <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => router.back()}>
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <div>
-                        <h1 className="text-xl font-bold">Ariza tafsiloti</h1>
-                        <p className="text-xs text-muted-foreground font-mono mt-0.5">{application._id}</p>
-                    </div>
-                    {hasMalumotnoma && (
-                        <div className="ml-auto">
-                            <Button
-                                variant="outline"
-                                className="rounded-xl gap-2"
-                                onClick={exportPDF}
-                                disabled={isPdfExporting}
-                            >
-                                {isPdfExporting
-                                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                                    : <FileDown className="h-4 w-4" />}
-                                Ma'lumotnoma PDF
-                            </Button>
+                <div className=" flex items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => router.back()}>
+                            <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                        <div>
+                            <h1 className="text-xl font-bold">Ariza tafsiloti</h1>
+                            <p className="text-xs text-muted-foreground font-mono mt-0.5">{application._id}</p>
                         </div>
-                    )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <RejectApplication application_id={application._id} onLoad={loadApplication} />
+                        <ReturnApplication application_id={application._id} onLoad={loadApplication} />
+                        <AcceptApplication application_id={application._id} onLoad={loadApplication} />
+                    </div>
+
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-3">

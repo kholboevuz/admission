@@ -27,6 +27,17 @@ export async function POST(req: NextRequest) {
         const admission_id = String(body?.admission_id || "");
         if (!admission_id) return NextResponse.json({ success: false, error: "admission_id required" }, { status: 400 });
 
+        const applicationStatus = await ApplicationsModel.findOne({ admission_id, pinfl }).select("application_status").lean();
+
+        if (applicationStatus?.application_status === "returned") {
+            const doc = await ApplicationsModel.findOneAndUpdate(
+                { admission_id, pinfl },
+                { $set: { application_status: "return_submitted" } },
+                { new: true }
+            );
+            if (!doc) return NextResponse.json({ success: false, error: "Application not found" }, { status: 404 });
+        }
+
         const doc = await ApplicationsModel.findOneAndUpdate(
             { admission_id, pinfl },
             { $set: { application_status: "submitted" } },
