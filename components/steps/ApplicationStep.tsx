@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMask } from "@react-input/mask";
-import { Upload, X, Loader2, FileText, ExternalLink } from "lucide-react";
+import { Upload, X, Loader2, FileText, ExternalLink, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ const MAX_PDF = 2 * 1024 * 1024;
 function onlyDigits(v: string) {
     return v.replace(/\D/g, "");
 }
+
 function isUzPhoneFull(v: string) {
     return onlyDigits(v).length === 12;
 }
@@ -85,6 +86,7 @@ type Props = {
     admission: Admission;
     defaultValues?: Partial<ApplicationData>;
     onNext: (data: ApplicationData) => void;
+    candidateChoice?: string | null;
 };
 
 function fileNameFromPath(p?: string) {
@@ -97,7 +99,7 @@ function fileNameFromPath(p?: string) {
     }
 }
 
-export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
+export function ApplicationStep({ admission, defaultValues, onNext, candidateChoice }: Props) {
     const phoneMaskRef = useMask({ mask: PHONE_MASK, replacement: { _: /\d/ } });
     const phoneExtraMaskRef = useMask({ mask: PHONE_MASK, replacement: { _: /\d/ } });
 
@@ -108,7 +110,7 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
             phone: defaultValues?.phone ?? "",
             phoneExtra: defaultValues?.phoneExtra ?? "",
             email: defaultValues?.email ?? "",
-            educationDirection: defaultValues?.educationDirection ?? "",
+            educationDirection: candidateChoice ?? defaultValues?.educationDirection ?? "",
             hasCertificate: (defaultValues?.hasCertificate as any) ?? "no",
             examLanguage: defaultValues?.examLanguage ?? "en",
             certificateFile: undefined,
@@ -155,9 +157,15 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
     }, []);
 
     React.useEffect(() => {
+        if (!candidateChoice) return;
+        form.setValue("educationDirection", candidateChoice, { shouldValidate: true });
+        form.clearErrors("educationDirection");
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [candidateChoice]);
+
+    React.useEffect(() => {
         if (hasCertificate === "yes") {
             form.setValue("examLanguage", undefined, { shouldValidate: true });
-
             if (certificatePath) {
                 form.clearErrors(["certificateFile", "certificatePath"]);
             }
@@ -179,8 +187,7 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
 
     React.useEffect(() => {
         const file = uploadedFiles?.[0];
-        if (hasCertificate !== "yes") return;
-        if (!file) return;
+        if (hasCertificate !== "yes" || !file) return;
 
         if (file.type !== "application/pdf") {
             showToast("Faqat PDF fayl qabul qilinadi", ToastType.Error);
@@ -198,7 +205,6 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
         const run = async () => {
             try {
                 setUploading(true);
-
                 form.setValue("certificateFile", file, { shouldValidate: false });
                 form.clearErrors(["certificateFile", "certificatePath"]);
 
@@ -224,8 +230,7 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
             } catch (e) {
                 console.error(e);
                 if (cancelled) return;
-
-                showToast("Fayl yuklashda xatolik. Qayta urinib ko‘ring.", ToastType.Error);
+                showToast("Fayl yuklashda xatolik. Qayta urinib ko'ring.", ToastType.Error);
                 setUploadedFiles([]);
                 form.setValue("certificatePath", undefined, { shouldValidate: true });
                 form.setError("certificateFile", { type: "custom", message: "Sertifikat PDF faylini yuklang" });
@@ -235,10 +240,7 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
         };
 
         run();
-
-        return () => {
-            cancelled = true;
-        };
+        return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [uploadedFiles?.[0], hasCertificate, admission._id]);
 
@@ -247,13 +249,15 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
             showToast("Fayl yuklanmoqda. Iltimos kuting...", ToastType.Warning);
             return;
         }
-
         if (values.hasCertificate === "yes" && values.certificatePath) {
             form.clearErrors(["certificateFile", "certificatePath"]);
         }
-
         onNext(values);
     });
+
+    const lockedChoiceName = candidateChoice
+        ? admission.choices?.find((c) => c.id === candidateChoice)?.name
+        : null;
 
     return (
         <form className="mt-5 space-y-6" onSubmit={submit}>
@@ -270,9 +274,9 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
                         {...phoneReg}
                         ref={mergeRefs(phoneMaskRef, phoneReg.ref)}
                     />
-                    {form.formState.errors.phone?.message ? (
+                    {form.formState.errors.phone?.message && (
                         <p className="text-xs text-destructive">{form.formState.errors.phone.message}</p>
-                    ) : null}
+                    )}
                 </div>
 
                 <div className="space-y-2">
@@ -287,9 +291,9 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
                         {...phoneExtraReg}
                         ref={mergeRefs(phoneExtraMaskRef, phoneExtraReg.ref)}
                     />
-                    {form.formState.errors.phoneExtra?.message ? (
+                    {form.formState.errors.phoneExtra?.message && (
                         <p className="text-xs text-destructive">{form.formState.errors.phoneExtra.message}</p>
-                    ) : null}
+                    )}
                 </div>
 
                 <div className="space-y-2">
@@ -303,34 +307,52 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
                         className={cn(form.formState.errors.email && "border-destructive focus-visible:ring-destructive")}
                         {...form.register("email")}
                     />
-                    {form.formState.errors.email?.message ? (
+                    {form.formState.errors.email?.message && (
                         <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
-                    ) : null}
+                    )}
                 </div>
 
                 <div className="space-y-2">
                     <Label htmlFor="educationDirection">
                         Ta'lim yo'nalishi <span className="text-destructive">*</span>
                     </Label>
-                    <select
-                        id="educationDirection"
-                        className={cn(
-                            "h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background transition-colors",
-                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                            form.formState.errors.educationDirection && "border-destructive focus-visible:ring-destructive"
-                        )}
-                        {...form.register("educationDirection")}
-                    >
-                        <option value="">Tanlang…</option>
-                        {admission.choices?.map((c) => (
-                            <option key={c.id} value={c.id}>
-                                {c.name}
-                            </option>
-                        ))}
-                    </select>
-                    {form.formState.errors.educationDirection?.message ? (
+
+                    {candidateChoice ? (
+                        <>
+                            <div className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-muted/50 px-3 text-sm text-foreground">
+                                <Lock className="size-3.5 shrink-0 text-muted-foreground" />
+                                <span className="flex-1 truncate">
+                                    {lockedChoiceName ?? candidateChoice}
+                                </span>
+                                <input type="hidden" {...form.register("educationDirection")} />
+                            </div>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Lock className="size-3 shrink-0" />
+                                Yo'nalish sizning ariza raqamingizga bog'liq va o'zgartirib bo'lmaydi
+                            </p>
+                        </>
+                    ) : (
+                        <select
+                            id="educationDirection"
+                            className={cn(
+                                "h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background transition-colors",
+                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                form.formState.errors.educationDirection && "border-destructive focus-visible:ring-destructive"
+                            )}
+                            {...form.register("educationDirection")}
+                        >
+                            <option value="">Tanlang…</option>
+                            {admission.choices?.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.name}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+
+                    {form.formState.errors.educationDirection?.message && (
                         <p className="text-xs text-destructive">{form.formState.errors.educationDirection.message}</p>
-                    ) : null}
+                    )}
                 </div>
             </div>
 
@@ -371,7 +393,6 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
                             <Label>
                                 Sertifikat fayli (PDF) <span className="text-destructive">*</span>
                             </Label>
-
                             {uploading ? (
                                 <span className="flex items-center gap-2 text-xs text-muted-foreground">
                                     <Loader2 className="h-4 w-4 animate-spin" /> Yuklanmoqda...
@@ -392,7 +413,6 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
                                         <p className="text-xs text-muted-foreground">Sertifikat yuklangan</p>
                                     </div>
                                 </div>
-
                                 <div className="flex items-center gap-2">
                                     <a
                                         href={certificatePath}
@@ -400,21 +420,20 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
                                         rel="noreferrer"
                                         className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-accent"
                                     >
-                                        Ko‘rish <ExternalLink className="h-4 w-4" />
+                                        Ko'rish <ExternalLink className="h-4 w-4" />
                                     </a>
-
                                     <Button
                                         type="button"
                                         variant="outline"
                                         size="sm"
                                         className="rounded-lg"
+                                        disabled={uploading}
                                         onClick={() => {
                                             setUploadedFiles([]);
                                             form.setValue("certificateFile", undefined, { shouldValidate: true });
                                             form.setValue("certificatePath", undefined, { shouldValidate: true });
                                             form.trigger(["certificateFile", "certificatePath"]);
                                         }}
-                                        disabled={uploading}
                                     >
                                         Qayta yuklash
                                     </Button>
@@ -463,16 +482,15 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
                             </FileUpload>
                         )}
 
-                        {form.formState.errors.certificateFile?.message ? (
+                        {form.formState.errors.certificateFile?.message && (
                             <p className="text-xs text-destructive">{String(form.formState.errors.certificateFile.message)}</p>
-                        ) : null}
+                        )}
                     </div>
                 ) : (
                     <div className="space-y-3 pt-2">
                         <Label htmlFor="examLanguage">
                             Chet tili imtihonini topshirish tili <span className="text-destructive">*</span>
                         </Label>
-
                         <select
                             id="examLanguage"
                             className={cn(
@@ -486,10 +504,9 @@ export function ApplicationStep({ admission, defaultValues, onNext }: Props) {
                             <option value="de">Nemis tili</option>
                             <option value="fr">Fransuz tili</option>
                         </select>
-
-                        {form.formState.errors.examLanguage?.message ? (
+                        {form.formState.errors.examLanguage?.message && (
                             <p className="text-xs text-destructive">{String(form.formState.errors.examLanguage.message)}</p>
-                        ) : null}
+                        )}
                     </div>
                 )}
             </div>

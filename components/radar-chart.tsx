@@ -1,67 +1,37 @@
-"use client"
+"use client";
 
-import { TrendingUp } from "lucide-react"
-import { PolarAngleAxis, PolarGrid, Radar, RadarChart } from "recharts"
-
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card"
+import { PolarAngleAxis, PolarGrid, Radar, RadarChart } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     ChartContainer,
     ChartTooltip,
     ChartTooltipContent,
     type ChartConfig,
-} from "@/components/ui/chart"
+} from "@/components/ui/chart";
 
-export const description = "A radar chart with a custom grid"
-
-const chartData = [
-    { month: "January", desktop: 186 },
-    { month: "February", desktop: 305 },
-    { month: "March", desktop: 237 },
-    { month: "April", desktop: 273 },
-    { month: "May", desktop: 209 },
-    { month: "June", desktop: 214 },
-]
+type RadarItem = { category: string; applicants: number };
 
 const chartConfig = {
-    desktop: {
-        label: "Desktop",
-        color: "var(--chart-1)",
-    },
-} satisfies ChartConfig
+    applicants: { label: "Tinglovchilar", color: "var(--chart-1)" },
+} satisfies ChartConfig;
 
-export function ChartRadarGridCustom() {
+export function ChartRadarGridCustom({ data }: { data: RadarItem[] }) {
     return (
         <Card className="h-full">
             <CardHeader className="items-center pb-4">
-                <CardTitle>Yo'nalishlar kesmida tinglovchilar statistikasi</CardTitle>
+                <CardTitle>Yo'nalishlar kesmida tinglovchilar</CardTitle>
             </CardHeader>
+
             <CardContent className="pb-0">
-                <ChartContainer
-                    config={chartConfig}
-                    className="mx-auto aspect-square max-h-[250px]"
-                >
-                    <RadarChart data={chartData}>
-                        <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent hideLabel />}
-                        />
+                <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[250px]">
+                    <RadarChart data={data}>
+                        <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
                         <PolarGrid radialLines={false} polarRadius={[90]} strokeWidth={1} />
-                        <PolarAngleAxis dataKey="month" />
-                        <Radar
-                            dataKey="desktop"
-                            fill="var(--color-desktop)"
-                            fillOpacity={0.6}
-                        />
+                        <PolarAngleAxis dataKey="category" />
+                        <Radar dataKey="applicants" fill="var(--color-applicants)" fillOpacity={0.6} />
                     </RadarChart>
                 </ChartContainer>
             </CardContent>
         </Card>
-    )
+    );
 }

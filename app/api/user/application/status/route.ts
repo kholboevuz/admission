@@ -4,14 +4,48 @@ import { jwtVerify } from "jose";
 import { connectDB } from "@/config/dbconn";
 import AdmissionModel from "@/models/admission-models";
 import ApplicationsModel from "@/models/application-models";
+import BSACandidatesModel from "@/models/bsacandidates-models";
+
 
 type AuthPayload = { sub?: string; role?: string; pinfl?: string };
 
+// ─── Admission type helpers ───────────────────────────────────────────────────
+
+type AdmissionTypeEntry = { id: string; name: string };
+
+/**
+ * admission_type massividagi name lardan mosini topadi.
+ * Ikkala tur ham bo'lishi mumkin — shuning uchun Set ishlatamiz.
+ */
+function getAdmissionTypes(admissionTypes: AdmissionTypeEntry[] = []): {
+    hasOpenCompetition: boolean;
+    hasOrderBased: boolean;
+} {
+    const ids = new Set(admissionTypes.map((t) => String(t.id).trim().toUpperCase()));
+    return {
+        hasOpenCompetition: ids.has("OPEN_COMPETITION"),
+        hasOrderBased: ids.has("ORDER_BASED"),
+    };
+}
+
+/**
+ * ORDER_BASED uchun: foydalanuvchi BSACandidates da bormi?
+ */
+async function isUserCandidate(admissionId: string, pinfl: string): Promise<boolean> {
+    const doc = await BSACandidatesModel.findOne({
+        admissionId: String(admissionId),
+        "candidates.pinfl": pinfl,
+    })
+        .select("_id")
+        .lean();
+    return !!doc;
+}
+
+// ─── Generic helpers ──────────────────────────────────────────────────────────
+
 function isNowInRange(start: string | Date, end: string | Date) {
     const now = new Date();
-    const s = new Date(start);
-    const e = new Date(end);
-    return now >= s && now <= e;
+    return now >= new Date(start) && now <= new Date(end);
 }
 
 function json200(data: unknown) {
@@ -29,10 +63,8 @@ function json500() {
 async function getAuth(req: NextRequest): Promise<AuthPayload | null> {
     const token = req.cookies.get("access_token")?.value;
     if (!token) return null;
-
     const secret = process.env.JWT_SECRET;
     if (!secret) throw new Error("JWT_SECRET env yo'q");
-
     const key = new TextEncoder().encode(secret);
     const { payload } = await jwtVerify(token, key);
     return payload as AuthPayload;
@@ -51,9 +83,47 @@ async function getLastUserApplication(pinfl: string) {
 }
 
 async function userHasApplication(pinfl: string, admissionId: string) {
-    const app = await ApplicationsModel.findOne({ pinfl, admission_id: admissionId }).lean();
-    return !!app;
+    return !!(await ApplicationsModel.findOne({ pinfl, admission_id: admissionId }).lean());
 }
+
+// ─── Core: compute ok for a given admission + pinfl ──────────────────────────
+
+async function computeOk(
+    admission: any,
+    pinfl: string,
+    hasApplication: boolean
+): Promise<{
+    ok: boolean;
+    isOpen: boolean;
+    reason?: string;
+}> {
+    const admissionId = String(admission._id);
+    const dateOpen = isNowInRange(admission.starter_date, admission.end_date);
+    const { hasOpenCompetition, hasOrderBased } = getAdmissionTypes(admission.admission_type ?? []);
+
+    // ── Ikkalasi ham yoki faqat OPEN_COMPETITION: avvalgi logika ──────────────
+    if (hasOpenCompetition || (!hasOpenCompetition && !hasOrderBased)) {
+        return {
+            ok: dateOpen || hasApplication,
+            isOpen: dateOpen,
+        };
+    }
+
+    // ── Faqat ORDER_BASED ─────────────────────────────────────────────────────
+    // Vaqt ochiq bo'lishi kerak VА kandidat ro'yxatida bo'lishi kerak.
+    // Ariza allaqachon topshirilgan bo'lsa (hasApplication) — ham ko'rsatamiz.
+    const isCandidate = await isUserCandidate(admissionId, pinfl);
+
+    const ok = (dateOpen && isCandidate) || hasApplication;
+
+    return {
+        ok,
+        isOpen: dateOpen && isCandidate,
+        reason: !isCandidate ? "not_candidate" : !dateOpen ? "date_closed" : undefined,
+    };
+}
+
+// ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
     try {
@@ -90,30 +160,30 @@ export async function GET(req: NextRequest) {
                     ? activeAdmission
                     : await AdmissionModel.findById(targetAdmissionId).lean();
 
-        // Agar target topilmasa — fallback: lastAdmission bo‘yicha hisoblaymiz
+        // Fallback: targetAdmission topilmasa
         if (!targetAdmission) {
-            const admissionStatus = !!lastAdmission.status;
-            const isOpen =
-                admissionStatus && isNowInRange(lastAdmission.starter_date, lastAdmission.end_date);
+            if (!lastAdmission.status) {
+                return json200({
+                    ok: false,
+                    isOpen: false,
+                    hasApplication: false,
+                    admissionId: String(lastAdmission._id),
+                    admissionStatus: false,
+                });
+            }
 
-            const hasApplication = admissionStatus
-                ? await userHasApplication(pinfl, String(lastAdmission._id))
-                : false;
-
-            const ok = admissionStatus ? isOpen || hasApplication : false;
+            const hasApp = await userHasApplication(pinfl, String(lastAdmission._id));
+            const computed = await computeOk(lastAdmission, pinfl, hasApp);
 
             return json200({
-                ok,
-                isOpen,
-                hasApplication,
+                ...computed,
+                hasApplication: hasApp,
                 admissionId: String(lastAdmission._id),
-                admissionStatus,
+                admissionStatus: !!lastAdmission.status,
             });
         }
 
-        const admissionStatus = !!targetAdmission.status;
-
-        if (!admissionStatus) {
+        if (!targetAdmission.status) {
             return json200({
                 ok: false,
                 isOpen: false,
@@ -123,18 +193,15 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        const isOpen = isNowInRange(targetAdmission.starter_date, targetAdmission.end_date);
-
-        // active usable bo‘lsa hasApplication false (sizning original logikangiz)
+        // active usable bo'lsa hasApplication false (original logika)
         const hasApplication = activeIsUsable
             ? false
             : !!lastUserApp && String(lastUserApp.admission_id) === String(targetAdmission._id);
 
-        const ok = isOpen || hasApplication;
+        const computed = await computeOk(targetAdmission, pinfl, hasApplication);
 
         return json200({
-            ok,
-            isOpen,
+            ...computed,
             hasApplication,
             admissionId: String(targetAdmission._id),
             admissionStatus: true,

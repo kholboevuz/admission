@@ -1,71 +1,71 @@
-"use client"
+"use client";
 
-import { TrendingUp } from "lucide-react"
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
+import { TrendingUp } from "lucide-react";
+import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     ChartContainer,
     ChartTooltip,
     ChartTooltipContent,
     type ChartConfig,
-} from "@/components/ui/chart"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/chart";
+import { cn } from "@/lib/utils";
 
-const chartData = [
-    { month: "January", desktop: 186 },
-    { month: "February", desktop: 305 },
-    { month: "March", desktop: 237 },
-    { month: "April", desktop: 73 },
-    { month: "May", desktop: 209 },
-    { month: "June", desktop: 214 },
-]
+type AreaItem = { month: string; applications: number };
+type Meta = { areaTotal: number; lastMonth: number; prevMonth: number; trendPct: number };
 
 const chartConfig = {
-    desktop: {
-        label: "Desktop",
-        color: "var(--chart-1)",
-    },
-} satisfies ChartConfig
+    applications: { label: "Arizalar", color: "var(--chart-1)" },
+} satisfies ChartConfig;
 
-export function ChartAreaDefault({ className }: { className?: string }) {
+export function ChartAreaDefault({
+    className,
+    data,
+    meta,
+    title,
+    description,
+}: {
+    className?: string;
+    data: AreaItem[];
+    meta?: Meta;
+    title?: string;
+    description?: string;
+}) {
+    const trendText =
+        meta?.prevMonth === 0
+            ? meta?.lastMonth
+                ? `O‘tgan oyga nisbatan +${meta.trendPct}%`
+                : "Trend: barqaror"
+            : meta
+                ? `O‘tgan oyga nisbatan ${meta.trendPct > 0 ? "+" : ""}${meta.trendPct}%`
+                : "Trend: -";
+
     return (
         <Card className={cn("h-full flex flex-col", className)}>
             <CardHeader className="shrink-0">
-                <CardTitle>Area Chart</CardTitle>
-                <CardDescription>Showing total visitors for the last 6 months</CardDescription>
+                <CardTitle>{title || "Arizalar dinamikasi"}</CardTitle>
+                <CardDescription>{description || "Oxirgi 6 oy kesimida"}</CardDescription>
             </CardHeader>
 
-            {/* chart joyi qolgan balandlikni egallaydi */}
             <CardContent className="flex-1 min-h-0">
                 <ChartContainer config={chartConfig} className="h-full w-full">
-                    <AreaChart
-                        accessibilityLayer
-                        data={chartData}
-                        margin={{ left: 12, right: 12 }}
-                    >
+                    <AreaChart accessibilityLayer data={data} margin={{ left: 12, right: 12 }}>
                         <CartesianGrid vertical={false} />
                         <XAxis
                             dataKey="month"
                             tickLine={false}
                             axisLine={false}
                             tickMargin={8}
-                            tickFormatter={(value) => value.slice(0, 3)}
+                            tickFormatter={(value) => String(value).slice(0, 3)}
                         />
                         <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
                         <Area
-                            dataKey="desktop"
+                            dataKey="applications"
                             type="natural"
-                            fill="var(--color-desktop)"
+                            fill="var(--color-applications)"
                             fillOpacity={0.4}
-                            stroke="var(--color-desktop)"
+                            stroke="var(--color-applications)"
                         />
                     </AreaChart>
                 </ChartContainer>
@@ -75,14 +75,14 @@ export function ChartAreaDefault({ className }: { className?: string }) {
                 <div className="flex w-full items-start gap-2 text-sm">
                     <div className="grid gap-2">
                         <div className="flex items-center gap-2 leading-none font-medium">
-                            Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
+                            {trendText} <TrendingUp className="h-4 w-4" />
                         </div>
                         <div className="text-muted-foreground flex items-center gap-2 leading-none">
-                            January - June 2024
+                            Jami: {meta?.areaTotal ?? data.reduce((s, x) => s + x.applications, 0)} ta (oxirgi 6 oy)
                         </div>
                     </div>
                 </div>
             </CardFooter>
         </Card>
-    )
+    );
 }

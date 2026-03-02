@@ -115,9 +115,9 @@ export function SidebarNav({ onNavigate }: Props) {
         { id: "applications", title: "Arizalar", href: `/dashboard/admin/admission/${categoryId}/applications` },
         { id: "build-message", title: "Xabar yaratish", href: `/dashboard/admin/admission/${categoryId}/build-message` },
         { id: "bsa-candidates", title: "BSA nomzodlar", href: `/dashboard/admin/admission/${categoryId}/bsa-candidates` },
-        { id: "test-results", title: "Test natijalari", href: `/dashboard/admin/admission/${categoryId}/test-results` },
-        { id: "interview-results", title: "Suxbat natijalari", href: `/dashboard/admin/admission/${categoryId}/interview-results` },
-        { id: "mandate-results", title: "Mandat natijalari", href: `/dashboard/admin/admission/${categoryId}/mandate-results` },
+        // { id: "test-results", title: "Test natijalari", href: `/dashboard/admin/admission/${categoryId}/test-results` },
+        // { id: "interview-results", title: "Suxbat natijalari", href: `/dashboard/admin/admission/${categoryId}/interview-results` },
+        // { id: "mandate-results", title: "Mandat natijalari", href: `/dashboard/admin/admission/${categoryId}/mandate-results` },
     ];
 
     const isAdmissionRoute = pathname.startsWith("/dashboard/admin/admission");

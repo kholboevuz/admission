@@ -101,6 +101,7 @@ function mapExistingToWizard(existing: ExistingApp | null): WizardData {
 }
 
 export function StepperForm({ admission, existing, onLoad }: Props) {
+
     const initialStep: StepValue = React.useMemo(() => {
         const s = Number(existing?.step ?? 1);
         if (s <= 1) return "account";
@@ -110,13 +111,19 @@ export function StepperForm({ admission, existing, onLoad }: Props) {
     }, [existing?.step]);
 
     const [value, setValue] = React.useState<StepValue>(initialStep);
-
+    const [candidateChoice, setCandidateChoice] = React.useState<string | null>(null);
     const [data, setData] = React.useState<WizardData>(() => mapExistingToWizard(existing));
 
     React.useEffect(() => {
         setData(mapExistingToWizard(existing));
     }, [existing]);
-
+    React.useEffect(() => {
+        const loadCandidateChoice = async () => {
+            const res = await axiosClient.get<{ choice: string | null }>(`/user/application/${admission._id}/candidate-choice`);
+            setCandidateChoice(res.data.choice);
+        };
+        loadCandidateChoice();
+    }, [admission._id]);
     const [completed, setCompleted] = React.useState<Record<StepValue, boolean>>({
         account: !!existing?.step_1,
         profile: !!existing?.esse,
@@ -223,6 +230,7 @@ export function StepperForm({ admission, existing, onLoad }: Props) {
                             <ApplicationStep
                                 admission={admission}
                                 defaultValues={data.application}
+                                candidateChoice={candidateChoice}
                                 onNext={async (payload) => {
                                     setData((p) => ({ ...p, application: payload }));
 
